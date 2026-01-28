@@ -8,9 +8,9 @@ L'application analyse les données communautaires en temps réel, intègre un ge
 propose un hub de connaissances exhaustif.
 
 ## Stack Technologique
-- [cite_start]**Frontend :** Electron, Vite, React, TypeScript [cite: 94, 161]
-- [cite_start]**Style :** Tailwind CSS, ShadCN UI [cite: 161]
-- [cite_start]**Traitement de données :** Python 3.12 [cite: 161]
-- [cite_start]**APIs :** Deadlock Community, Steam, Spotify [cite: 147, 150]
+- **Frontend :** Electron, Vite, React, TypeScript [cite: 94, 161]
+- **Style :** Tailwind CSS, ShadCN UI [cite: 161]
+- **Traitement de données :** Python 3.12 [cite: 161]
+- **APIs :** Deadlock Community, Steam, Spotify [cite: 147, 150]
 
 ## Installation (À venir)
