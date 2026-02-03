@@ -1,0 +1,107 @@
+@import "tailwindcss";
+
+/* Animations pour les sous-menus du Sidebar */
+@keyframes fadeOutUp {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes fadeInDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-out-up {
+  animation: fadeOutUp 0.2s ease-out forwards;
+}
+
+.animate-fade-in-down {
+  animation: fadeInDown 0.2s ease-out forwards;
+}
+
+/* Page transition classes */
+.page-fade-out {
+  animation: fadeOutUp 0.25s ease-out forwards;
+}
+
+.page-fade-in {
+  animation: fadeInDown 0.25s ease-out forwards;
+}
+
+@theme {
+  /* Charcoal colors */
+  --color-charcoal-100: #121212;
+  --color-charcoal-200: #252525;
+  --color-charcoal-300: #373737;
+  --color-charcoal-400: #494949;
+  --color-charcoal-500: #5b5b5b;
+  --color-charcoal-600: #7c7c7c;
+  --color-charcoal-700: #9d9d9d;
+  --color-charcoal-800: #bebebe;
+  --color-charcoal-900: #dedede;
+  
+  /* Grey colors */
+  --color-grey-100: #191918;
+  --color-grey-200: #313130;
+  --color-grey-300: #4a4a49;
+  --color-grey-400: #636261;
+  --color-grey-500: #7d7c7a;
+  --color-grey-600: #969594;
+  --color-grey-700: #b0b0af;
+  --color-grey-800: #cacac9;
+  --color-grey-900: #e5e5e4;
+  
+  /* Dry Sage colors */
+  --color-dry-sage-100: #2e2b1a;
+  --color-dry-sage-200: #5d5534;
+  --color-dry-sage-300: #8b804e;
+  --color-dry-sage-400: #b0a472;
+  --color-dry-sage-500: #c9c19f;
+  --color-dry-sage-600: #d4ceb3;
+  --color-dry-sage-700: #dfdac6;
+  --color-dry-sage-800: #eae7d9;
+  --color-dry-sage-900: #f4f3ec;
+  
+  /* Frosted Mint colors */
+  --color-frosted-mint-100: #3d4e0e;
+  --color-frosted-mint-200: #7a9c1c;
+  --color-frosted-mint-300: #b0dc38;
+  --color-frosted-mint-400: #cfea86;
+  --color-frosted-mint-500: #edf7d2;
+  --color-frosted-mint-600: #f1f9dc;
+  --color-frosted-mint-700: #f5fae5;
+  --color-frosted-mint-800: #f8fcee;
+  --color-frosted-mint-900: #fcfdf6;
+  
+  /* Cream colors */
+  --color-cream-100: #434d09;
+  --color-cream-200: #869a11;
+  --color-cream-300: #c7e61b;
+  --color-cream-400: #daee68;
+  --color-cream-500: #edf7b5;
+  --color-cream-600: #f1f8c4;
+  --color-cream-700: #f4fad3;
+  --color-cream-800: #f8fce2;
+  --color-cream-900: #fbfdf0;
+}
+
+body {
+  font-family:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial,
+    sans-serif;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}

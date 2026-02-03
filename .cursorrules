@@ -1,0 +1,171 @@
+# DeadlockHelper - Règles de développement pour Cursor AI
+
+## 🎨 Style & Couleurs
+
+### Palette de couleurs personnalisée
+Utilise **exclusivement** les classes Tailwind basées sur la palette personnalisée définie dans `tailwind.config.ts` :
+
+- **charcoal-100** : Fond sombre principal (backgrounds dark)
+- **frosted_mint** ou **cream** : Accents et textes importants
+- **dry_sage** : Éléments secondaires
+- **grey** : Textes et bordures neutres
+
+**Exemples d'utilisation :**
+- Fond sombre : `bg-charcoal-100` ou `bg-charcoal-200`
+- Texte accent : `text-frosted_mint-500` ou `text-cream-500`
+- Bordures : `border-grey-300` ou `border-dry_sage-400`
+
+**⚠️ IMPORTANT :** Ne jamais utiliser les couleurs par défaut de Tailwind (gray, blue, etc.) sauf pour des cas très spécifiques. Toujours prioriser la palette personnalisée.
+
+## 🧩 Composants UI
+
+### Structure des composants
+1. **Composants spécifiques** : Créer dans `src/renderer/components/` pour usage unique ou page-spécifique
+2. **Composants réutilisables** : Créer dans `src/renderer/componentsUI/` pour composants utilisés plusieurs fois ou modulaires
+
+### Règles de création de composants
+- **Toujours utiliser Tailwind** pour le style des composants UI
+- Si un composant est utilisé **plusieurs fois** ou sera **ajouté plusieurs fois** dans l'application → le placer dans `componentsUI/`
+- Les composants doivent être **modulaires** et **réutilisables**
+- Utiliser TypeScript strict pour tous les composants
+
+### Exemples de composants réutilisables
+- Boutons (Button, IconButton)
+- Cartes (Card, StatCard)
+- Inputs (TextInput, Select)
+- Modals (Modal, Dialog)
+- Navigation (NavLink, SidebarItem)
+
+## 🏗️ Architecture
+
+### Séparation des processus Electron
+
+#### Main Process (`src/main/`)
+- **Rôle** : Orchestrateur principal (Node.js)
+- **Responsabilités** :
+  - Lancement de scripts Python
+  - Communication IPC avec le Renderer
+  - Détection et authentification Steam (`steam-logic.ts`)
+  - Appels système et gestion des fichiers
+- **Fichiers** :
+  - `main.ts` : Point d'entrée, orchestration
+  - `steam-logic.ts` : Logique Steam
+
+#### Preload Process (`src/preload/`)
+- **Rôle** : Pont de sécurité IPC entre Main et Renderer
+- **Responsabilités** :
+  - Exposition sécurisée des APIs via `contextBridge`
+  - Validation des communications IPC
+- **⚠️ SÉCURITÉ** : Toujours utiliser `contextBridge` et `preload.ts` pour les communications IPC
+
+#### Renderer Process (`src/renderer/`)
+- **Rôle** : Frontend (Vite + TypeScript)
+- **Structure** :
+  ```
+  renderer/
+  ├── assets/         # Images, icônes, styles globaux
+  ├── components/     # Composants UI spécifiques
+  ├── componentsUI/  # Composants réutilisables/modulaires
+  ├── pages/          # Vues principales
+  │   ├── Accueil/
+  │   ├── EnPartie/   # Dashboard tactique (12 cartes)
+  │   ├── Historique/ # Statistiques de fin de match
+  │   └── Parametres/ # Langues, thèmes, chemins .exe
+  └── index.css       # Directives Tailwind
+  ```
+
+### Backend Python (`src/python/`)
+- **Rôle** : Moteur de traitement de données lourdes
+- **Responsabilités** :
+  - Traitement de données (nettoyage, tags)
+  - Appels à la Deadlock API
+  - Logique métier complexe
+- **Fichiers** :
+  - `data_processor.py` : Script principal de traitement
+  - `requirements.txt` : Dépendances Python
+
+### Bibliothèque partagée (`src/lib/`)
+- **Rôle** : Types TypeScript partagés et utilitaires
+- **Contenu** : Types, interfaces, helpers, constants
+
+## 📁 Structure de fichiers complète
+
+```
+deadlock-app/
+├── src/
+│   ├── main/               # Processus Principal (Node.js)
+│   │   ├── main.ts         # Orchestrateur (Lancement Python, IPC)
+│   │   └── steam-logic.ts  # Détection et authentification Steam
+│   ├── preload/            # Pont de sécurité IPC entre Main et Renderer
+│   │   └── preload.ts
+│   ├── renderer/           # Frontend (Vite + TypeScript)
+│   │   ├── assets/         # Images, icônes et styles globaux
+│   │   ├── components/     # Composants UI spécifiques
+│   │   ├── componentsUI/  # Composants réutilisables/modulaires
+│   │   ├── pages/          # Vues principales
+│   │   │   ├── Accueil/
+│   │   │   ├── EnPartie/   # Dashboard tactique (12 cartes)
+│   │   │   ├── Historique/ # Statistiques de fin de match
+│   │   │   └── Parametres/ # Langues, thèmes et chemins .exe
+│   │   ├── app.ts          # Contrôleur principal
+│   │   └── index.css       # Directives Tailwind
+│   ├── python/             # Moteur de traitement de données
+│   │   ├── data_processor.py # Script principal de nettoyage/tags
+│   │   └── requirements.txt  # Dépendances (requests, etc.)
+│   └── lib/                # Types TS partagés et utilitaires
+├── resources/              # Icônes de l'application et fichiers statiques
+├── tailwind.config.ts      # Configuration des couleurs personnalisées
+└── .cursorrules            # Ce fichier
+```
+
+## 🔒 Sécurité
+
+### Communication IPC
+- **TOUJOURS** utiliser `contextBridge` dans `preload.ts`
+- **JAMAIS** activer `nodeIntegration: true` dans le Renderer
+- Valider toutes les données passées via IPC
+- Utiliser des canaux IPC typés et sécurisés
+
+### Exemple de preload sécurisé
+```typescript
+// src/preload/preload.ts
+import { contextBridge, ipcRenderer } from 'electron';
+
+contextBridge.exposeInMainWorld('api', {
+  request: (endpoint: string, options?: any) =>
+    ipcRenderer.invoke('api:request', { endpoint, ...options }),
+});
+```
+
+## 📝 Conventions de code
+
+### TypeScript
+- Utiliser TypeScript strict
+- Définir les types dans `src/lib/types/`
+- Éviter `any`, utiliser `unknown` si nécessaire
+
+### Nommage
+- Composants : PascalCase (`Button.ts`, `UserCard.ts`)
+- Fichiers utilitaires : camelCase (`apiClient.ts`, `utils.ts`)
+- Pages : PascalCase dans des dossiers (`Accueil/index.ts`)
+
+### Imports
+- Imports relatifs pour fichiers locaux
+- Imports depuis `src/lib/` pour types partagés
+- Grouper les imports : externes → internes → types
+
+## 🚀 Workflow de développement
+
+1. **Nouveau composant** : Vérifier s'il sera réutilisé → `componentsUI/` sinon `components/`
+2. **Nouvelle page** : Créer dans `src/renderer/pages/[NomPage]/`
+3. **Logique lourde** : Créer script Python dans `src/python/`
+4. **Types partagés** : Ajouter dans `src/lib/types/`
+5. **Styles** : Toujours utiliser la palette personnalisée Tailwind
+
+## ⚠️ Points d'attention
+
+- **Ne jamais** mélanger les responsabilités Main/Renderer
+- **Toujours** utiliser la palette de couleurs personnalisée
+- **Vérifier** la réutilisabilité avant de créer un composant
+- **Sécuriser** toutes les communications IPC
+- **Documenter** les composants complexes dans des commentaires

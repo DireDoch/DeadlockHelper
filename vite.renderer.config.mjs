@@ -4,6 +4,9 @@ import tailwindcss from '@tailwindcss/vite';
 // https://vitejs.dev/config
 export default defineConfig({
   plugins: [
-    tailwindcss(),
+    tailwindcss({
+      // Explicitly load the config file
+      config: './tailwind.config.ts',
+    }),
   ],
 });
