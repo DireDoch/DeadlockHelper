@@ -45,3 +45,66 @@ export interface SteamUser {
   username: string;
   avatar?: string;
 }
+
+// Steam Profile from Deadlock API
+export interface SteamProfile {
+  account_id: number;
+  personaname: string;
+  profileurl: string;
+  avatar: string;
+  avatarmedium: string;
+  avatarfull: string;
+  realname?: string | null;
+  countrycode?: string | null;
+  last_updated?: number;
+}
+
+// Hero Data from Deadlock API
+export interface HeroData {
+  id: number;
+  name: string;
+  images?: {
+    icon_image_small?: string;
+    icon_image_small_webp?: string;
+    [key: string]: any;
+  };
+  [key: string]: any; // Allow additional fields from API
+}
+
+// Match and Player types for Live Dashboard
+export type Lane = 'yellow' | 'blue' | 'green';
+
+export interface Player {
+  account_id: number;
+  player_slot: number;
+  hero_id: number;
+  hero_name?: string;
+  team: 0 | 1;
+  lane?: Lane;
+  assigned_lane?: number; // Lane number from API (0=yellow, 1=blue, 2=green)
+  kills: number;
+  deaths: number;
+  assists: number;
+  kda?: string; // Formatted KDA string (e.g., "2.5/1.2/3.1")
+  level: number;
+  net_worth?: number;
+  rank?: number; // Badge/rank number
+  name?: string; // Player username
+  winrate?: number; // Winrate percentage
+  total_matches?: number;
+  steamProfile?: SteamProfile;
+  heroData?: HeroData;
+}
+
+export interface MatchData {
+  match_id?: number;
+  duration_s?: number;
+  winning_team?: 0 | 1;
+  players: Player[];
+  teams?: Array<{
+    team: 0 | 1;
+    [key: string]: any;
+  }>;
+  game_mode?: string;
+  [key: string]: any; // Allow additional fields from API
+}

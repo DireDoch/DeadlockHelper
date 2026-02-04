@@ -1,0 +1,1006 @@
+{
+    "id": 20,
+    "class_name": "hero_tengu",
+    "name": "Ivy",
+    "description": {
+      "lore": "The gargoyle didn't know what was happening when it sprang to life...  just that a big human and a small human were being hurt.  And so the gargoyle leapt to action, sending the attackers fleeing in horror.  The small human said thank you and asked the gargoyle's name.  The gargoyle didn't have one.  And so the small human said, \"I'm going to call you Ivy.\"  The gargoyle, being covered in ivy at the time, thought it was a bit obvious, but decided to go along with it for the small human's sake.\n\nThe humans asked if Ivy would come home with them so they could show their appreciation, and so Ivy walked with them.  That night she learned much.  The family were called The Arroyo's.  The little one, Sophia.  Mofongo is what they called a plate of deliciousness.  But most importantly, she learned that the people attacking them were called \"The Mendoza Syndicate\", and they were hurting people...nice people like The Arroyo's.\n\n18 years have passed since the day the Arroyo's took Ivy home... and during that time she made it her mission to dismantle the Mendoza Syndicate and free Spanish Harlem from its grasp.  However the thing about dedicating your life to a single pursuit for nearly 2 decades is that you don't really know what to do once you achieve it.  For the first time in her life, Ivy is prepared to venture outside of Spanish Harlem and see what the world has to offer beyond vigilante justice.",
+      "role": "Sets up a power duo with a lucky ally",
+      "playstyle": "Ivy has disruptive combat tricks that slow and stun enemies. She's most effective when linking up with an ally, empowering her and her ally's guns as well as sharing heals."
+    },
+    "item_draft_weights": {
+      "upgrade_ability_power_shard": 1,
+      "upgrade_ability_refresher": 1,
+      "upgrade_absorbing_armor": 1,
+      "upgrade_acolytes_glove": 1.8,
+      "upgrade_active_reload": 2.4,
+      "upgrade_aerial_supremacy": 1,
+      "upgrade_ancient_shield": 1,
+      "upgrade_aoe_root": 2.4,
+      "upgrade_apex_combat": 1,
+      "upgrade_aprounds": 2.4,
+      "upgrade_arcane_extension": 2.4,
+      "upgrade_arcane_surge": 1,
+      "upgrade_arctic_blast": 2.4,
+      "upgrade_banshee_slugs": 2.4,
+      "upgrade_berserker": 1,
+      "upgrade_blitz_bullets": 1,
+      "upgrade_blood_tribute": 1,
+      "upgrade_boundless_spirit": 2.4,
+      "upgrade_boxing_glove": 1.8,
+      "upgrade_bullet_armor_reduction_aura": 1,
+      "upgrade_bullet_resist_shredder": 1,
+      "upgrade_burst_fire": 2.4,
+      "upgrade_capacitor": 1,
+      "upgrade_cardio_calibrator": 1,
+      "upgrade_chain_lightning": 2.4,
+      "upgrade_cheat_death": 1,
+      "upgrade_chonky": 2.4,
+      "upgrade_clip_size": 2.4,
+      "upgrade_cloaking_device_active": 1,
+      "upgrade_close_quarter_combat": 1,
+      "upgrade_close_range": 1,
+      "upgrade_cold_front": 1,
+      "upgrade_colossus": 1,
+      "upgrade_containment": 1,
+      "upgrade_cooldown_reduction": 2.4,
+      "upgrade_counterspell": 1,
+      "upgrade_crackshot": 1,
+      "upgrade_critshot": 2.4,
+      "upgrade_crushing_fists": 1.8,
+      "upgrade_damage_recycler": 1,
+      "upgrade_debuff_reducer": 1,
+      "upgrade_deflecting_armor": 1,
+      "upgrade_discord": 1,
+      "upgrade_divine_barrier": 1,
+      "upgrade_diviners_kevlar": 1,
+      "upgrade_dps_aura": 2.4,
+      "upgrade_enchanted_holsters": 1,
+      "upgrade_endurance": 0.4,
+      "upgrade_escalating_exposure": 2.4,
+      "upgrade_ethereal_bullets": 1,
+      "upgrade_express_shot": 1,
+      "upgrade_extra_charge": 1,
+      "upgrade_fervor": 1,
+      "upgrade_fleetfoot_boots": 2.4,
+      "upgrade_focus_lens": 1,
+      "upgrade_fury_trance": 1,
+      "upgrade_glass_cannon": 2.4,
+      "upgrade_glitch": 1,
+      "upgrade_greater_withering_whip": 2.4,
+      "upgrade_guardian_ward": 2.4,
+      "upgrade_haunting_scream": 1,
+      "upgrade_headhunter": 1,
+      "upgrade_headshot_booster": 2.4,
+      "upgrade_headshot_booster2": 1,
+      "upgrade_healbane": 2.4,
+      "upgrade_healbuff": 2.4,
+      "upgrade_healing_booster": 2.4,
+      "upgrade_health": 1,
+      "upgrade_health_nova": 2.4,
+      "upgrade_health_stealing_magic": 1,
+      "upgrade_health_stimpak": 1,
+      "upgrade_high_velocity_mag": 1,
+      "upgrade_hollow_point_rounds": 2.4,
+      "upgrade_imbued_duration_extender": 2.4,
+      "upgrade_improved_bullet_armor": 1,
+      "upgrade_improved_spirit": 2.4,
+      "upgrade_improved_stamina": 1,
+      "upgrade_infinite_rounds": 1,
+      "upgrade_infuser": 1,
+      "upgrade_inhibitor": 1,
+      "upgrade_intensifying_clip": 1,
+      "upgrade_juggernaut": 1,
+      "upgrade_kinetic_sash": 1,
+      "upgrade_lifestrike_gauntlets": 2.2,
+      "upgrade_long_range": 1,
+      "upgrade_magic_burst": 1,
+      "upgrade_magic_carpet": 1,
+      "upgrade_magic_reach": 2.4,
+      "upgrade_magic_shield": 2.4,
+      "upgrade_magic_shock": 1,
+      "upgrade_magic_slow": 2.4,
+      "upgrade_magic_storm": 2.4,
+      "upgrade_magic_tempo": 2.4,
+      "upgrade_magic_vulnerability": 2.4,
+      "upgrade_medic_bullets": 0.4,
+      "upgrade_melee_charge": 1.8,
+      "upgrade_melee_rebuttal": 1,
+      "upgrade_metal_skin": 1,
+      "upgrade_mystic_regeneration": 1,
+      "upgrade_non_player_bonus": 1,
+      "upgrade_non_player_bonus_sacrifice": 1,
+      "upgrade_omnicharge_pendant": 1,
+      "upgrade_phantom_strike": 1,
+      "upgrade_pristine_emblem": 1,
+      "upgrade_proc_silence": 2.4,
+      "upgrade_quick_silver": 1,
+      "upgrade_rapid_recharge": 1,
+      "upgrade_rapid_rounds": 2.4,
+      "upgrade_reduce_debuff_duration": 1,
+      "upgrade_regenerating_bullet_shield": 2.4,
+      "upgrade_reinforcing_casings": 1,
+      "upgrade_rescue_beam": 2.4,
+      "upgrade_resonant_healing": 1,
+      "upgrade_restorative_locket": 1,
+      "upgrade_return_fire": 1,
+      "upgrade_ricochet": 1,
+      "upgrade_rocket_booster": 1,
+      "upgrade_rupture": 2.4,
+      "upgrade_self_bubble": 1,
+      "upgrade_shadow_step": 1,
+      "upgrade_sharpshooter": 1,
+      "upgrade_siphon_bullets": 1,
+      "upgrade_slowing_bullets": 1,
+      "upgrade_soaring_spirit": 2.4,
+      "upgrade_spellbreaker": 1,
+      "upgrade_spellslinger_headshots": 2.4,
+      "upgrade_spirit_bubble": 1,
+      "upgrade_spirit_burn": 2.4,
+      "upgrade_spirit_sap": 1,
+      "upgrade_spirit_snatch": 1.8,
+      "upgrade_split_shot": 1,
+      "upgrade_sprint_booster": 1,
+      "upgrade_superior_stamina": 1,
+      "upgrade_suppressor": 1,
+      "upgrade_surging_power": 2.4,
+      "upgrade_target_stun": 1,
+      "upgrade_targeted_silence": 1,
+      "upgrade_tech_bleed": 1,
+      "upgrade_tech_damage_pulse": 1,
+      "upgrade_tech_defense_shredders": 1,
+      "upgrade_tech_overflow": 1,
+      "upgrade_tech_purge": 1,
+      "upgrade_tech_range": 2.4,
+      "upgrade_thermal_detonator": 2.4,
+      "upgrade_timeless_emblem": 1,
+      "upgrade_titan_round": 2.4,
+      "upgrade_toxic_bullets": 2.4,
+      "upgrade_transcendent_cooldown": 2.4,
+      "upgrade_trophy_collector": 1,
+      "upgrade_ultimate_burst": 2.4,
+      "upgrade_unstoppable": 1,
+      "upgrade_vampire": 2.4,
+      "upgrade_veil_walker": 1,
+      "upgrade_vex_barrier": 1,
+      "upgrade_warp_stone": 1,
+      "upgrade_weapon_backstabber": 1,
+      "upgrade_weapon_shielding": 1,
+      "upgrade_weighted_shots": 1,
+      "upgrade_withering_whip": 1,
+      "upgrade_bulletshredimbue": 1,
+      "upgrade_rechargingbullets": 1,
+      "upgrade_icarus_wings": 1,
+      "upgrade_mystical_piano": 1,
+      "upgrade_nullification_aura": 1,
+      "upgrade_celestial_guidance": 1,
+      "upgrade_eternal_gift": 1,
+      "upgrade_patrons_blessing": 1,
+      "upgrade_eldritch_shot": 1,
+      "upgrade_cloak_of_opportunity": 1,
+      "upgrade_runed_gauntlets": 0.4,
+      "upgrade_electric_slippers": 1,
+      "upgrade_prism_blast": 1,
+      "upgrade_unstable_concoction": 1,
+      "upgrade_shivas_bracelet": 1,
+      "upgrade_shadow_strike": 1,
+      "upgrade_shrink_ray": 0.3
+    },
+    "player_selectable": true,
+    "disabled": false,
+    "in_development": false,
+    "needs_testing": false,
+    "assigned_players_only": false,
+    "tags": [
+      "Team-up",
+      "Disruptor",
+      "Rock Solid"
+    ],
+    "gun_tag": "Rapid Fire",
+    "hideout_rich_presence": "Wishing the Arroyos were in the Hideout",
+    "hero_type": "marksman",
+    "prerelease_only": false,
+    "limited_testing": false,
+    "complexity": 3,
+    "skin": 0,
+    "images": {
+      "icon_hero_card": "https://assets-bucket.deadlock-api.com/assets-api-res/images/heroes/tengu_card.png",
+      "icon_hero_card_webp": "https://assets-bucket.deadlock-api.com/assets-api-res/images/heroes/tengu_card.webp",
+      "icon_image_small": "https://assets-bucket.deadlock-api.com/assets-api-res/images/heroes/tengu_sm.png",
+      "icon_image_small_webp": "https://assets-bucket.deadlock-api.com/assets-api-res/images/heroes/tengu_sm.webp",
+      "minimap_image": "https://assets-bucket.deadlock-api.com/assets-api-res/images/heroes/tengu_mm.png",
+      "minimap_image_webp": "https://assets-bucket.deadlock-api.com/assets-api-res/images/heroes/tengu_mm.webp",
+      "hero_card_critical": "https://assets-bucket.deadlock-api.com/assets-api-res/images/heroes/tengu_card_critical.png",
+      "hero_card_critical_webp": "https://assets-bucket.deadlock-api.com/assets-api-res/images/heroes/tengu_card_critical.webp",
+      "hero_card_gloat": "https://assets-bucket.deadlock-api.com/assets-api-res/images/heroes/tengu_card_gloat.png",
+      "hero_card_gloat_webp": "https://assets-bucket.deadlock-api.com/assets-api-res/images/heroes/tengu_card_gloat.webp",
+      "top_bar_vertical_image": "https://assets-bucket.deadlock-api.com/assets-api-res/images/heroes/tengu_vertical.png",
+      "top_bar_vertical_image_webp": "https://assets-bucket.deadlock-api.com/assets-api-res/images/heroes/tengu_vertical.webp",
+      "background_image": "https://assets-bucket.deadlock-api.com/assets-api-res/images/heroes/backgrounds/ivy_bg.png",
+      "background_image_webp": "https://assets-bucket.deadlock-api.com/assets-api-res/images/heroes/backgrounds/ivy_bg.webp",
+      "name_image": "https://assets-bucket.deadlock-api.com/assets-api-res/icons/ivy.svg"
+    },
+    "items": {
+      "weapon_primary": "citadel_weapon_tengu_set",
+      "weapon_melee": "citadel_ability_melee_tengu",
+      "ability_mantle": "citadel_ability_mantle",
+      "ability_jump": "citadel_ability_jump",
+      "ability_slide": "citadel_ability_slide",
+      "ability_zip_line": "citadel_ability_zip_line",
+      "ability_zip_line_boost": "citadel_ability_zipline_boost",
+      "ability_climb_rope": "citadel_ability_climb_rope",
+      "ability_innate1": "citadel_ability_dash",
+      "ability_innate2": "citadel_ability_sprint",
+      "ability_innate3": "citadel_ability_melee_parry",
+      "eslot_cosmetic_1": "cosmetic_item_voting_poster",
+      "signature1": "citadel_ability_tengu_urn",
+      "signature2": "citadel_ability_tangotether",
+      "signature3": "citadel_ability_tengu_stone_form",
+      "signature4": "citadel_ability_tengu_airlift"
+    },
+    "starting_stats": {
+      "max_move_speed": {
+        "value": 7.2,
+        "display_stat_name": "EMaxMoveSpeed"
+      },
+      "sprint_speed": {
+        "value": 1.6,
+        "display_stat_name": "ESprintSpeed"
+      },
+      "crouch_speed": {
+        "value": 4.75,
+        "display_stat_name": "ECrouchSpeed"
+      },
+      "move_acceleration": {
+        "value": 4,
+        "display_stat_name": "EMoveAcceleration"
+      },
+      "light_melee_damage": {
+        "value": 50,
+        "display_stat_name": "ELightMeleeDamage"
+      },
+      "heavy_melee_damage": {
+        "value": 116,
+        "display_stat_name": "EHeavyMeleeDamage"
+      },
+      "max_health": {
+        "value": 725,
+        "display_stat_name": "EMaxHealth"
+      },
+      "weapon_power": {
+        "value": 0,
+        "display_stat_name": "EWeaponPower"
+      },
+      "reload_speed": {
+        "value": 1,
+        "display_stat_name": "EReloadSpeed"
+      },
+      "weapon_power_scale": {
+        "value": 1,
+        "display_stat_name": "EWeaponPowerScale"
+      },
+      "proc_build_up_rate_scale": {
+        "value": 1,
+        "display_stat_name": "EProcBuildUpRateScale"
+      },
+      "stamina": {
+        "value": 4,
+        "display_stat_name": "EStamina"
+      },
+      "base_health_regen": {
+        "value": 2,
+        "display_stat_name": "EBaseHealthRegen"
+      },
+      "stamina_regen_per_second": {
+        "value": 0.222222,
+        "display_stat_name": "EStaminaRegenPerSecond"
+      },
+      "ability_resource_max": {
+        "value": 0,
+        "display_stat_name": "EAbilityResourceMax"
+      },
+      "ability_resource_regen_per_second": {
+        "value": 0,
+        "display_stat_name": "EAbilityResourceRegenPerSecond"
+      },
+      "crit_damage_received_scale": {
+        "value": 1,
+        "display_stat_name": "ECritDamageReceivedScale"
+      },
+      "tech_duration": {
+        "value": 1,
+        "display_stat_name": "ETechDuration"
+      },
+      "tech_range": {
+        "value": 1,
+        "display_stat_name": "ETechRange"
+      }
+    },
+    "item_slot_info": {
+      "weapon": {
+        "max_purchases_for_tier": [
+          6,
+          6,
+          6
+        ]
+      },
+      "vitality": {
+        "max_purchases_for_tier": [
+          6,
+          6,
+          6
+        ]
+      },
+      "spirit": {
+        "max_purchases_for_tier": [
+          6,
+          6,
+          6
+        ]
+      }
+    },
+    "physics": {
+      "stealth_speed_meters_per_second": 4
+    },
+    "colors": {
+      "ui": [
+        179,
+        115,
+        217
+      ]
+    },
+    "shop_stat_display": {
+      "spirit_stats_display": {
+        "display_stats": [
+          "ETechCooldown",
+          "ETechDuration",
+          "ETechRange",
+          "ETechLifesteal",
+          "EMaxChargesIncrease",
+          "ETechCooldownBetweenChargeUses"
+        ]
+      },
+      "vitality_stats_display": {
+        "display_stats": [
+          "EMaxHealth",
+          "EBaseHealthRegen",
+          "EHealingOutput",
+          "EOOCHealthRegen",
+          "EBulletArmorDamageReduction",
+          "ETechArmorDamageReduction",
+          "EMeleeResist",
+          "EDebuffResist",
+          "ECritDamageReceivedScale"
+        ],
+        "other_display_stats": [
+          "EMaxMoveSpeed",
+          "ESprintSpeed",
+          "EStaminaCooldown",
+          "EStaminaRegenIncrease",
+          "EStamina",
+          "EDashSpeedInMeters"
+        ]
+      },
+      "weapon_stats_display": {
+        "display_stats": [
+          "EBulletDamage",
+          "EBaseWeaponDamageIncrease",
+          "ERoundsPerSecond",
+          "EFireRate",
+          "EClipSize",
+          "EClipSizeIncrease",
+          "EReloadTime",
+          "EReloadSpeed",
+          "EBulletSpeed",
+          "EBulletSpeedIncrease",
+          "EBulletLifesteal",
+          "ECritDamageBonusScale"
+        ],
+        "other_display_stats": [
+          "ELightMeleeDamage",
+          "EHeavyMeleeDamage"
+        ],
+        "weapon_attributes": [
+          "EWeaponAttribute_RapidFire",
+          "EWeaponAttribute_MediumRange"
+        ],
+        "weapon_image": "https://assets-bucket.deadlock-api.com/assets-api-res/images/heroes/guns/ivy_gun.png",
+        "weapon_image_webp": "https://assets-bucket.deadlock-api.com/assets-api-res/images/heroes/guns/ivy_gun.webp"
+      }
+    },
+    "cost_bonuses": {
+      "weapon": [
+        {
+          "gold_threshold": 800,
+          "bonus": 7,
+          "percent_on_graph": 8
+        },
+        {
+          "gold_threshold": 1600,
+          "bonus": 9,
+          "percent_on_graph": 8
+        },
+        {
+          "gold_threshold": 2400,
+          "bonus": 13,
+          "percent_on_graph": 9
+        },
+        {
+          "gold_threshold": 3200,
+          "bonus": 20,
+          "percent_on_graph": 9
+        },
+        {
+          "gold_threshold": 4800,
+          "bonus": 49,
+          "percent_on_graph": 10
+        },
+        {
+          "gold_threshold": 7200,
+          "bonus": 60,
+          "percent_on_graph": 10
+        },
+        {
+          "gold_threshold": 9600,
+          "bonus": 80,
+          "percent_on_graph": 11
+        },
+        {
+          "gold_threshold": 16000,
+          "bonus": 95,
+          "percent_on_graph": 11
+        },
+        {
+          "gold_threshold": 22400,
+          "bonus": 115,
+          "percent_on_graph": 12
+        },
+        {
+          "gold_threshold": 28800,
+          "bonus": 135,
+          "percent_on_graph": 12
+        }
+      ],
+      "vitality": [
+        {
+          "gold_threshold": 800,
+          "bonus": 75,
+          "percent_on_graph": 8
+        },
+        {
+          "gold_threshold": 1600,
+          "bonus": 125,
+          "percent_on_graph": 8
+        },
+        {
+          "gold_threshold": 2400,
+          "bonus": 200,
+          "percent_on_graph": 9
+        },
+        {
+          "gold_threshold": 3200,
+          "bonus": 275,
+          "percent_on_graph": 9
+        },
+        {
+          "gold_threshold": 4800,
+          "bonus": 525,
+          "percent_on_graph": 10
+        },
+        {
+          "gold_threshold": 7200,
+          "bonus": 625,
+          "percent_on_graph": 10
+        },
+        {
+          "gold_threshold": 9600,
+          "bonus": 750,
+          "percent_on_graph": 11
+        },
+        {
+          "gold_threshold": 16000,
+          "bonus": 1000,
+          "percent_on_graph": 11
+        },
+        {
+          "gold_threshold": 22400,
+          "bonus": 1200,
+          "percent_on_graph": 12
+        },
+        {
+          "gold_threshold": 28800,
+          "bonus": 1400,
+          "percent_on_graph": 12
+        }
+      ],
+      "spirit": [
+        {
+          "gold_threshold": 800,
+          "bonus": 7,
+          "percent_on_graph": 8
+        },
+        {
+          "gold_threshold": 1600,
+          "bonus": 11,
+          "percent_on_graph": 8
+        },
+        {
+          "gold_threshold": 2400,
+          "bonus": 15,
+          "percent_on_graph": 9
+        },
+        {
+          "gold_threshold": 3200,
+          "bonus": 19,
+          "percent_on_graph": 9
+        },
+        {
+          "gold_threshold": 4800,
+          "bonus": 38,
+          "percent_on_graph": 10
+        },
+        {
+          "gold_threshold": 7200,
+          "bonus": 52,
+          "percent_on_graph": 10
+        },
+        {
+          "gold_threshold": 9600,
+          "bonus": 64,
+          "percent_on_graph": 11
+        },
+        {
+          "gold_threshold": 16000,
+          "bonus": 76,
+          "percent_on_graph": 11
+        },
+        {
+          "gold_threshold": 22400,
+          "bonus": 89,
+          "percent_on_graph": 12
+        },
+        {
+          "gold_threshold": 28800,
+          "bonus": 101,
+          "percent_on_graph": 12
+        }
+      ]
+    },
+    "stats_display": {
+      "health_header_stats": [
+        "EMaxHealth",
+        "EBaseHealthRegen"
+      ],
+      "health_stats": [
+        "EMaxHealth",
+        "EBaseHealthRegen"
+      ],
+      "magic_header_stats": [
+        "ETechPower"
+      ],
+      "magic_stats": [
+        "ETechCooldown",
+        "ETechRange",
+        "ETechDuration"
+      ],
+      "weapon_header_stats": [
+        "EWeaponDPS",
+        "EBulletDamage"
+      ],
+      "weapon_stats": [
+        "ELightMeleeDamage",
+        "EHeavyMeleeDamage",
+        "EFireRate",
+        "EClipSize"
+      ]
+    },
+    "hero_stats_ui": {
+      "weapon_stat_display": "EMeleeDamage_DEPRECATED",
+      "display_stats": [
+        {
+          "category": "ECitadelStat_Vitality",
+          "stat_type": "EMaxHealth"
+        },
+        {
+          "category": "ECitadelStat_Vitality",
+          "stat_type": "EBaseHealthRegen"
+        },
+        {
+          "category": "ECitadelStat_Vitality",
+          "stat_type": "EBulletArmorDamageReduction"
+        },
+        {
+          "category": "ECitadelStat_Vitality",
+          "stat_type": "ETechArmorDamageReduction"
+        },
+        {
+          "category": "ECitadelStat_Spirit",
+          "stat_type": "ETechPower"
+        },
+        {
+          "category": "ECitadelStat_Weapon",
+          "stat_type": "EWeaponDPS"
+        },
+        {
+          "category": "ECitadelStat_Weapon",
+          "stat_type": "EBulletDamage"
+        },
+        {
+          "category": "ECitadelStat_Weapon",
+          "stat_type": "EClipSize"
+        },
+        {
+          "category": "ECitadelStat_Weapon",
+          "stat_type": "ERoundsPerSecond"
+        },
+        {
+          "category": "ECitadelStat_Weapon",
+          "stat_type": "ELightMeleeDamage"
+        },
+        {
+          "category": "ECitadelStat_Weapon",
+          "stat_type": "EHeavyMeleeDamage"
+        },
+        {
+          "category": "ECitadelStat_Vitality",
+          "stat_type": "EMaxMoveSpeed"
+        },
+        {
+          "category": "ECitadelStat_Vitality",
+          "stat_type": "ESprintSpeed"
+        },
+        {
+          "category": "ECitadelStat_Vitality",
+          "stat_type": "EStamina"
+        }
+      ]
+    },
+    "level_info": {
+      "1": {
+        "bonus_currencies": [
+          "EAbilityUnlocks"
+        ],
+        "required_gold": 0
+      },
+      "2": {
+        "use_standard_upgrade": true,
+        "bonus_currencies": [
+          "EAbilityPoints"
+        ],
+        "required_gold": 300
+      },
+      "3": {
+        "use_standard_upgrade": true,
+        "bonus_currencies": [
+          "EAbilityUnlocks"
+        ],
+        "required_gold": 600
+      },
+      "4": {
+        "use_standard_upgrade": true,
+        "bonus_currencies": [
+          "EAbilityPoints"
+        ],
+        "required_gold": 900
+      },
+      "5": {
+        "use_standard_upgrade": true,
+        "bonus_currencies": [
+          "EAbilityUnlocks"
+        ],
+        "required_gold": 1500
+      },
+      "6": {
+        "use_standard_upgrade": true,
+        "bonus_currencies": [
+          "EAbilityPoints"
+        ],
+        "required_gold": 2200
+      },
+      "7": {
+        "use_standard_upgrade": true,
+        "bonus_currencies": [
+          "EAbilityUnlocks"
+        ],
+        "required_gold": 3000
+      },
+      "8": {
+        "use_standard_upgrade": true,
+        "bonus_currencies": [
+          "EAbilityPoints"
+        ],
+        "required_gold": 3800
+      },
+      "9": {
+        "use_standard_upgrade": true,
+        "bonus_currencies": [
+          "EAbilityPoints"
+        ],
+        "required_gold": 4600
+      },
+      "10": {
+        "use_standard_upgrade": true,
+        "bonus_currencies": [
+          "EAbilityPoints"
+        ],
+        "required_gold": 5400
+      },
+      "11": {
+        "use_standard_upgrade": true,
+        "bonus_currencies": [
+          "EAbilityPoints"
+        ],
+        "required_gold": 6200
+      },
+      "12": {
+        "use_standard_upgrade": true,
+        "bonus_currencies": [
+          "EAbilityPoints"
+        ],
+        "required_gold": 7100
+      },
+      "13": {
+        "use_standard_upgrade": true,
+        "bonus_currencies": [
+          "EAbilityPoints"
+        ],
+        "required_gold": 8000
+      },
+      "14": {
+        "use_standard_upgrade": true,
+        "bonus_currencies": [
+          "EAbilityPoints"
+        ],
+        "required_gold": 9000
+      },
+      "15": {
+        "use_standard_upgrade": true,
+        "bonus_currencies": [
+          "EAbilityPoints"
+        ],
+        "required_gold": 10000
+      },
+      "16": {
+        "use_standard_upgrade": true,
+        "bonus_currencies": [
+          "EAbilityPoints"
+        ],
+        "required_gold": 11000
+      },
+      "17": {
+        "use_standard_upgrade": true,
+        "bonus_currencies": [
+          "EAbilityPoints"
+        ],
+        "required_gold": 12000
+      },
+      "18": {
+        "use_standard_upgrade": true,
+        "bonus_currencies": [
+          "EAbilityPoints"
+        ],
+        "required_gold": 13200
+      },
+      "19": {
+        "use_standard_upgrade": true,
+        "bonus_currencies": [
+          "EAbilityPoints"
+        ],
+        "required_gold": 15000
+      },
+      "20": {
+        "use_standard_upgrade": true,
+        "bonus_currencies": [
+          "EAbilityPoints"
+        ],
+        "required_gold": 17000
+      },
+      "21": {
+        "use_standard_upgrade": true,
+        "bonus_currencies": [
+          "EAbilityPoints"
+        ],
+        "required_gold": 19000
+      },
+      "22": {
+        "use_standard_upgrade": true,
+        "bonus_currencies": [
+          "EAbilityPoints"
+        ],
+        "required_gold": 21000
+      },
+      "23": {
+        "use_standard_upgrade": true,
+        "bonus_currencies": [
+          "EAbilityPoints"
+        ],
+        "required_gold": 23000
+      },
+      "24": {
+        "use_standard_upgrade": true,
+        "bonus_currencies": [
+          "EAbilityPoints"
+        ],
+        "required_gold": 25000
+      },
+      "25": {
+        "use_standard_upgrade": true,
+        "bonus_currencies": [
+          "EAbilityPoints"
+        ],
+        "required_gold": 27000
+      },
+      "26": {
+        "use_standard_upgrade": true,
+        "bonus_currencies": [
+          "EAbilityPoints"
+        ],
+        "required_gold": 29000
+      },
+      "27": {
+        "use_standard_upgrade": true,
+        "bonus_currencies": [
+          "EAbilityPoints"
+        ],
+        "required_gold": 31000
+      },
+      "28": {
+        "use_standard_upgrade": true,
+        "bonus_currencies": [
+          "EAbilityPoints"
+        ],
+        "required_gold": 33000
+      },
+      "29": {
+        "use_standard_upgrade": true,
+        "bonus_currencies": [
+          "EAbilityPoints"
+        ],
+        "required_gold": 35000
+      },
+      "30": {
+        "use_standard_upgrade": true,
+        "bonus_currencies": [
+          "EAbilityPoints"
+        ],
+        "required_gold": 37000
+      },
+      "31": {
+        "use_standard_upgrade": true,
+        "bonus_currencies": [
+          "EAbilityPoints"
+        ],
+        "required_gold": 39000
+      },
+      "32": {
+        "use_standard_upgrade": true,
+        "bonus_currencies": [
+          "EAbilityPoints"
+        ],
+        "required_gold": 41000
+      },
+      "33": {
+        "use_standard_upgrade": true,
+        "bonus_currencies": [
+          "EAbilityPoints"
+        ],
+        "required_gold": 43000
+      },
+      "34": {
+        "use_standard_upgrade": true,
+        "bonus_currencies": [
+          "EAbilityPoints"
+        ],
+        "required_gold": 45000
+      },
+      "35": {
+        "use_standard_upgrade": true,
+        "bonus_currencies": [
+          "EAbilityPoints"
+        ],
+        "required_gold": 47000
+      },
+      "36": {
+        "use_standard_upgrade": true,
+        "bonus_currencies": [
+          "EAbilityPoints"
+        ],
+        "required_gold": 49000
+      }
+    },
+    "scaling_stats": {},
+    "purchase_bonuses": {
+      "weapon": [
+        {
+          "value_type": "MODIFIER_VALUE_BASEATTACK_DAMAGE_PERCENT",
+          "tier": 1,
+          "value": "4"
+        },
+        {
+          "value_type": "MODIFIER_VALUE_BASEATTACK_DAMAGE_PERCENT",
+          "tier": 2,
+          "value": "8"
+        },
+        {
+          "value_type": "MODIFIER_VALUE_BASEATTACK_DAMAGE_PERCENT",
+          "tier": 3,
+          "value": "13"
+        },
+        {
+          "value_type": "MODIFIER_VALUE_BASEATTACK_DAMAGE_PERCENT",
+          "tier": 4,
+          "value": "18"
+        },
+        {
+          "value_type": "MODIFIER_VALUE_BASEATTACK_DAMAGE_PERCENT",
+          "tier": 5,
+          "value": "23"
+        }
+      ],
+      "vitality": [
+        {
+          "value_type": "MODIFIER_VALUE_BASE_HEALTH_PERCENT",
+          "tier": 1,
+          "value": "7"
+        },
+        {
+          "value_type": "MODIFIER_VALUE_BASE_HEALTH_PERCENT",
+          "tier": 2,
+          "value": "8"
+        },
+        {
+          "value_type": "MODIFIER_VALUE_BASE_HEALTH_PERCENT",
+          "tier": 3,
+          "value": "9"
+        },
+        {
+          "value_type": "MODIFIER_VALUE_BASE_HEALTH_PERCENT",
+          "tier": 4,
+          "value": "10"
+        },
+        {
+          "value_type": "MODIFIER_VALUE_BASE_HEALTH_PERCENT",
+          "tier": 5,
+          "value": "11"
+        }
+      ],
+      "spirit": [
+        {
+          "value_type": "MODIFIER_VALUE_TECH_POWER",
+          "tier": 1,
+          "value": "4"
+        },
+        {
+          "value_type": "MODIFIER_VALUE_TECH_POWER",
+          "tier": 2,
+          "value": "7"
+        },
+        {
+          "value_type": "MODIFIER_VALUE_TECH_POWER",
+          "tier": 3,
+          "value": "10"
+        },
+        {
+          "value_type": "MODIFIER_VALUE_TECH_POWER",
+          "tier": 4,
+          "value": "13"
+        },
+        {
+          "value_type": "MODIFIER_VALUE_TECH_POWER",
+          "tier": 5,
+          "value": "16"
+        }
+      ]
+    },
+    "standard_level_up_upgrades": {
+      "MODIFIER_VALUE_BASE_BULLET_DAMAGE_FROM_LEVEL": 0.121,
+      "MODIFIER_VALUE_BASE_BULLET_DAMAGE_FROM_LEVEL_ALT_FIRE": 0,
+      "MODIFIER_VALUE_BASE_HEALTH_FROM_LEVEL": 44,
+      "MODIFIER_VALUE_BASE_MELEE_DAMAGE_FROM_LEVEL": 1.58,
+      "MODIFIER_VALUE_BONUS_ATTACK_RANGE": 0,
+      "MODIFIER_VALUE_BOON_COUNT": 1,
+      "MODIFIER_VALUE_BULLET_ARMOR_DAMAGE_RESIST": 0,
+      "MODIFIER_VALUE_TECH_ARMOR_DAMAGE_RESIST": 0,
+      "MODIFIER_VALUE_TECH_DAMAGE_PERCENT": 0,
+      "MODIFIER_VALUE_TECH_POWER": 1.2
+    }
+  }

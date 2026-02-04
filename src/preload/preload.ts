@@ -19,8 +19,8 @@ contextBridge.exposeInMainWorld('api', {
     ipcRenderer.invoke('api:setToken', token),
   
   // Python script execution
-  executePython: (query: string, param?: string) =>
-    ipcRenderer.invoke('python:execute', { query, param }),
+  executePython: (query: string, param?: string, mockMode?: boolean) =>
+    ipcRenderer.invoke('python:execute', { query, param, mockMode }),
   
   // Steam operations
   detectSteam: () =>
@@ -28,6 +28,13 @@ contextBridge.exposeInMainWorld('api', {
   
   authenticateSteam: (credentials: any) =>
     ipcRenderer.invoke('steam:authenticate', credentials),
+  
+  // Mock mode operations
+  getMockMode: () =>
+    ipcRenderer.invoke('settings:getMockMode'),
+  
+  setMockMode: (enabled: boolean) =>
+    ipcRenderer.invoke('settings:setMockMode', enabled),
 });
 
 // Type declaration for TypeScript
@@ -36,9 +43,11 @@ declare global {
     api: {
       request: (endpoint: string, options?: { method?: string; body?: any }) => Promise<any>;
       setToken: (token: string) => Promise<any>;
-      executePython: (query: string, param?: string) => Promise<any>;
+      executePython: (query: string, param?: string, mockMode?: boolean) => Promise<any>;
       detectSteam: () => Promise<any>;
       authenticateSteam: (credentials: any) => Promise<any>;
+      getMockMode: () => Promise<boolean>;
+      setMockMode: (enabled: boolean) => Promise<any>;
     };
   }
 }

@@ -4,7 +4,7 @@
  */
 
 import { Sidebar, Page } from './components/Sidebar';
-import { MainPage, SubPage } from './lib/types';
+import type { MainPage, SubPage } from '../lib/types';
 
 // Main pages
 import { ProfilPage } from './pages/Profil';

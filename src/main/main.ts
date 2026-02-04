@@ -32,10 +32,13 @@ const createWindow = () => {
   mainWindow.webContents.openDevTools();
 };
 
+// Mock mode state (in-memory, can be migrated to config file later)
+let mockModeEnabled = false;
+
 // Setup IPC handlers
 function setupIpcHandlers(): void {
   // Python script execution handler
-  ipcMain.handle('python:execute', async (event, { query, param }) => {
+  ipcMain.handle('python:execute', async (event, { query, param, mockMode }) => {
     return new Promise((resolve, reject) => {
       // Get the application path (works in both dev and production)
       const appPath = app.getAppPath();
@@ -47,6 +50,12 @@ function setupIpcHandlers(): void {
       // Fallback: if file doesn't exist, try relative to __dirname (for production builds)
       // This is a safety check, but in dev mode appPath should work
       const args = ['--query', query || 'items'];
+      
+      // Add --mock flag if mockMode is true (from parameter or global state)
+      const useMockMode = mockMode !== undefined ? mockMode : mockModeEnabled;
+      if (useMockMode) {
+        args.push('--mock');
+      }
       
       if (param) {
         args.push('--param', param);
@@ -107,6 +116,16 @@ function setupIpcHandlers(): void {
         });
       });
     });
+  });
+  
+  // Mock mode handlers
+  ipcMain.handle('settings:getMockMode', async () => {
+    return mockModeEnabled;
+  });
+  
+  ipcMain.handle('settings:setMockMode', async (event, enabled: boolean) => {
+    mockModeEnabled = enabled;
+    return { success: true, mockMode: mockModeEnabled };
   });
   
   // Setup Steam handlers
