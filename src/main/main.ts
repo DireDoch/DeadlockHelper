@@ -1,10 +1,19 @@
 import { app, BrowserWindow, ipcMain } from 'electron';
 import path from 'node:path';
-import { spawn } from 'node:child_process';
 import Store from 'electron-store';
 import { setupSteamHandlers } from './steam-logic';
+import { runPython, getDataProcessorScriptPath, isPythonDebugEnabled } from './python-runner';
 import started from 'electron-squirrel-startup';
 import type { ApiHealthStatus, CachedMatchData, MatchData } from '../lib/types';
+
+/** Shape of JSON returned by data_processor.py (success, status, data, etc.) */
+interface PythonQueryResult {
+  success?: boolean;
+  status?: string;
+  code?: number;
+  data?: any;
+  [key: string]: unknown;
+}
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (started) {
@@ -111,67 +120,23 @@ function calculateAvailability(): number {
 }
 
 /**
- * Perform health check by calling Python script
+ * Perform health check by calling Python script (via python-runner abstraction)
  */
 async function performHealthCheck(): Promise<void> {
+  const appPath = app.getAppPath();
+  const scriptPath = getDataProcessorScriptPath(appPath);
+  const debug = isPythonDebugEnabled();
+
   try {
-    const result = await new Promise<any>((resolve, reject) => {
-      const appPath = app.getAppPath();
-      const pythonScript = path.join(appPath, 'src', 'python', 'data_processor.py');
-      const args = ['--health-check'];
-      
-      const pythonProcess = spawn('python', [pythonScript, ...args], {
-        cwd: appPath,
-        stdio: ['pipe', 'pipe', 'pipe'],
-      });
-      
-      let stdout = '';
-      let stderr = '';
-      
-      pythonProcess.stdout.on('data', (data) => {
-        stdout += data.toString();
-      });
-      
-      pythonProcess.stderr.on('data', (data) => {
-        stderr += data.toString();
-      });
-      
-      pythonProcess.on('close', (code) => {
-        if (code !== 0) {
-          reject({
-            success: false,
-            error: `Python process exited with code ${code}`,
-            stderr: stderr,
-          });
-          return;
-        }
-        
-        try {
-          const result = JSON.parse(stdout);
-          resolve(result);
-        } catch (parseError) {
-          reject({
-            success: false,
-            error: 'Failed to parse Python output as JSON',
-            stdout: stdout,
-            stderr: stderr,
-          });
-        }
-      });
-      
-      pythonProcess.on('error', (error) => {
-        reject({
-          success: false,
-          error: `Failed to start Python process: ${error.message}`,
-        });
-      });
+    const { data } = await runPython<{ success?: boolean; status?: string }>({
+      scriptPath,
+      args: ['--health-check'],
+      cwd: appPath,
+      debug,
     });
-    
-    // Record result (success if status is not "api_error")
-    const success = result.success && result.status !== 'api_error';
+    const success = Boolean(data?.success && data?.status !== 'api_error');
     recordApiCall(success);
   } catch (error) {
-    // Record failure
     recordApiCall(false);
     console.error('Health check failed:', error);
   }
@@ -202,124 +167,58 @@ function stopHeartbeat(): void {
 
 // Setup IPC handlers
 function setupIpcHandlers(): void {
-  // Python script execution handler
+  // Python script execution handler (uses python-runner abstraction)
   ipcMain.handle('python:execute', async (event, { query, param, mockMode }) => {
-    return new Promise(async (resolve, reject) => {
-      // Get the application path (works in both dev and production)
-      const appPath = app.getAppPath();
-      
-      // In development, appPath is the project root
-      // In production, it might be different, so we check both locations
-      let pythonScript = path.join(appPath, 'src', 'python', 'data_processor.py');
-      
-      // Fallback: if file doesn't exist, try relative to __dirname (for production builds)
-      // This is a safety check, but in dev mode appPath should work
-      const args = ['--query', query || 'items'];
-      
-      // Add --mock flag if mockMode is true (from parameter or global state)
-      const useMockMode = mockMode !== undefined ? mockMode : mockModeEnabled;
-      if (useMockMode) {
-        args.push('--mock');
-      }
-      
-      if (param) {
-        args.push('--param', param);
-      }
-      
-      // Use appPath as working directory (project root)
-      const workingDir = appPath;
-      
-      // Spawn Python process
-      const pythonProcess = spawn('python', [pythonScript, ...args], {
-        cwd: workingDir,
-        stdio: ['pipe', 'pipe', 'pipe'],
+    const appPath = app.getAppPath();
+    const scriptPath = getDataProcessorScriptPath(appPath);
+    const useMockMode = mockMode !== undefined ? mockMode : mockModeEnabled;
+    const args = ['--query', query || 'items'];
+    if (useMockMode) args.push('--mock');
+    if (param) args.push('--param', param);
+
+    try {
+      const { data: result } = await runPython<PythonQueryResult>({
+        scriptPath,
+        args,
+        cwd: appPath,
+        debug: isPythonDebugEnabled(),
       });
-      
-      let stdout = '';
-      let stderr = '';
-      
-      pythonProcess.stdout.on('data', (data) => {
-        stdout += data.toString();
-      });
-      
-      pythonProcess.stderr.on('data', (data) => {
-        stderr += data.toString();
-      });
-      
-      pythonProcess.on('close', async (code) => {
-        if (code !== 0) {
-          // Record failure
-          recordApiCall(false);
-          reject({
-            success: false,
-            error: `Python process exited with code ${code}`,
-            stderr: stderr,
-            pythonScript: pythonScript,
-            workingDir: workingDir,
-          });
-          return;
+
+      const isApiError = result.status === 'api_error' || (!result.success && (result.code ?? 0) >= 500);
+      recordApiCall(!isApiError);
+
+      if (isApiError && query === 'match' && param) {
+        const cachedMatch = store.get(`matchCache.${param}`);
+        if (cachedMatch) {
+          return {
+            ...cachedMatch.data,
+            success: true,
+            cached: true,
+            cached_at: cachedMatch.cached_at,
+          };
         }
-        
-        try {
-          const result = JSON.parse(stdout);
-          
-          // Check if this is an API error
-          const isApiError = result.status === 'api_error' || (!result.success && result.code >= 500);
-          
-          // Record API call result
-          recordApiCall(!isApiError);
-          
-          // If API error and this is a match query, try cache fallback
-          if (isApiError && query === 'match' && param) {
-            const cachedMatch = store.get(`matchCache.${param}`);
-            if (cachedMatch) {
-              // Return cached data with a flag
-              resolve({
-                ...cachedMatch.data,
-                success: true,
-                cached: true,
-                cached_at: cachedMatch.cached_at,
-              });
-              return;
-            }
-          }
-          
-          // If successful and this is a match query, cache the result
-          if (result.success && query === 'match' && param && result.data) {
-            const matchInfo = result.data?.match_info || result.data;
-            if (matchInfo && matchInfo.match_id) {
-              const cachedData: CachedMatchData = {
-                match_id: matchInfo.match_id,
-                data: result.data,
-                cached_at: Date.now(),
-              };
-              store.set(`matchCache.${param}`, cachedData);
-            }
-          }
-          
-          resolve(result);
-        } catch (parseError) {
-          recordApiCall(false);
-          reject({
-            success: false,
-            error: 'Failed to parse Python output as JSON',
-            stdout: stdout,
-            stderr: stderr,
+      }
+
+      if (result.success && query === 'match' && param && result.data) {
+        const matchInfo = result.data?.match_info || result.data;
+        if (matchInfo?.match_id) {
+          store.set(`matchCache.${param}`, {
+            match_id: matchInfo.match_id,
+            data: result.data,
+            cached_at: Date.now(),
           });
         }
-      });
-      
-      pythonProcess.on('error', (error) => {
-        recordApiCall(false);
-        reject({
-          success: false,
-          error: `Failed to start Python process: ${error.message}`,
-          hint: 'Make sure Python 3.12 is installed and available in PATH',
-          pythonScript: pythonScript,
-          workingDir: workingDir,
-        });
-      });
-    });
+      }
+
+      return result;
+    } catch (err: any) {
+      recordApiCall(false);
+      throw {
+        ...err,
+        pythonScript: err.scriptPath ?? scriptPath,
+        workingDir: err.workingDir ?? appPath,
+      };
+    }
   });
   
   // Mock mode handlers
