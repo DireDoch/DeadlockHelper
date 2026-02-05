@@ -108,3 +108,16 @@ export interface MatchData {
   game_mode?: string;
   [key: string]: any; // Allow additional fields from API
 }
+
+// API Health Monitoring Types
+export interface ApiHealthStatus {
+  availability: number;
+  lastCheck: number;
+  requestHistory: boolean[];
+}
+
+export interface CachedMatchData {
+  match_id: number;
+  data: MatchData;
+  cached_at: number;
+}

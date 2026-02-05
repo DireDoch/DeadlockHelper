@@ -8,11 +8,91 @@ import json
 import http.client
 import argparse
 import random
+import socket
 from typing import Dict, Any, Optional
 
 # Base URL for Deadlock API
 DEADLOCK_API_BASE = "assets.deadlock-api.com"
 DEADLOCK_API_V1_BASE = "api.deadlock-api.com"
+
+# Timeout for API requests (5 seconds)
+REQUEST_TIMEOUT = 5
+
+
+def check_api_status() -> Dict[str, Any]:
+    """
+    Perform a lightweight health check on the Deadlock API.
+    Uses /v2/heroes endpoint for minimal data transfer.
+    
+    Returns:
+        Dictionary containing API health status
+    """
+    conn = None
+    try:
+        conn = http.client.HTTPSConnection(DEADLOCK_API_BASE, timeout=REQUEST_TIMEOUT)
+        headers = {'Accept': 'application/json'}
+        
+        conn.request("GET", "/v2/heroes", headers=headers)
+        res = conn.getresponse()
+        
+        if res.status == 200:
+            return {
+                "success": True,
+                "status": "healthy",
+                "status_code": 200
+            }
+        elif res.status >= 500:
+            return {
+                "success": False,
+                "status": "api_error",
+                "code": 503,
+                "error": f"API returned status {res.status}",
+                "status_code": res.status
+            }
+        else:
+            return {
+                "success": False,
+                "status": "api_error",
+                "code": res.status,
+                "error": f"API returned status {res.status}",
+                "status_code": res.status
+            }
+    
+    except socket.timeout:
+        return {
+            "success": False,
+            "status": "api_error",
+            "code": 503,
+            "error": "Request timeout",
+            "status_code": 503
+        }
+    except (ConnectionError, OSError) as e:
+        return {
+            "success": False,
+            "status": "api_error",
+            "code": 503,
+            "error": f"Connection failed: {str(e)}",
+            "status_code": 503
+        }
+    except json.JSONDecodeError as e:
+        return {
+            "success": False,
+            "status": "api_error",
+            "code": 503,
+            "error": f"Failed to parse JSON: {str(e)}",
+            "status_code": 503
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "status": "api_error",
+            "code": 503,
+            "error": f"Request failed: {str(e)}",
+            "status_code": 503
+        }
+    finally:
+        if conn:
+            conn.close()
 
 
 def fetch_items(item_id_or_class: Optional[str] = None) -> Dict[str, Any]:
@@ -25,10 +105,12 @@ def fetch_items(item_id_or_class: Optional[str] = None) -> Dict[str, Any]:
     Returns:
         Dictionary containing API response
     """
-    conn = http.client.HTTPSConnection(DEADLOCK_API_BASE)
+    conn = None
     headers = {'Accept': '*/*'}
     
     try:
+        conn = http.client.HTTPSConnection(DEADLOCK_API_BASE, timeout=REQUEST_TIMEOUT)
+        
         # Build endpoint
         if item_id_or_class:
             endpoint = f"/v2/items/{item_id_or_class}"
@@ -39,6 +121,14 @@ def fetch_items(item_id_or_class: Optional[str] = None) -> Dict[str, Any]:
         res = conn.getresponse()
         
         if res.status != 200:
+            if res.status >= 500:
+                return {
+                    "success": False,
+                    "status": "api_error",
+                    "code": 503,
+                    "error": f"API returned status {res.status}",
+                    "status_code": res.status
+                }
             return {
                 "success": False,
                 "error": f"API returned status {res.status}",
@@ -54,6 +144,22 @@ def fetch_items(item_id_or_class: Optional[str] = None) -> Dict[str, Any]:
             "status_code": res.status
         }
     
+    except socket.timeout:
+        return {
+            "success": False,
+            "status": "api_error",
+            "code": 503,
+            "error": "Request timeout",
+            "status_code": 503
+        }
+    except (ConnectionError, OSError) as e:
+        return {
+            "success": False,
+            "status": "api_error",
+            "code": 503,
+            "error": f"Connection failed: {str(e)}",
+            "status_code": 503
+        }
     except json.JSONDecodeError as e:
         return {
             "success": False,
@@ -62,10 +168,14 @@ def fetch_items(item_id_or_class: Optional[str] = None) -> Dict[str, Any]:
     except Exception as e:
         return {
             "success": False,
-            "error": f"Request failed: {str(e)}"
+            "status": "api_error",
+            "code": 503,
+            "error": f"Request failed: {str(e)}",
+            "status_code": 503
         }
     finally:
-        conn.close()
+        if conn:
+            conn.close()
 
 
 def generate_mock_match_data() -> Dict[str, Any]:
@@ -184,15 +294,24 @@ def fetch_match_metadata(match_id: str) -> Dict[str, Any]:
     Returns:
         Dictionary containing API response
     """
-    conn = http.client.HTTPSConnection(DEADLOCK_API_V1_BASE)
+    conn = None
     headers = {'Accept': 'application/json'}
     
     try:
+        conn = http.client.HTTPSConnection(DEADLOCK_API_V1_BASE, timeout=REQUEST_TIMEOUT)
         endpoint = f"/v1/matches/{match_id}/metadata"
         conn.request("GET", endpoint, headers=headers)
         res = conn.getresponse()
         
         if res.status != 200:
+            if res.status >= 500:
+                return {
+                    "success": False,
+                    "status": "api_error",
+                    "code": 503,
+                    "error": f"API returned status {res.status}",
+                    "status_code": res.status
+                }
             return {
                 "success": False,
                 "error": f"API returned status {res.status}",
@@ -208,6 +327,22 @@ def fetch_match_metadata(match_id: str) -> Dict[str, Any]:
             "status_code": res.status
         }
     
+    except socket.timeout:
+        return {
+            "success": False,
+            "status": "api_error",
+            "code": 503,
+            "error": "Request timeout",
+            "status_code": 503
+        }
+    except (ConnectionError, OSError) as e:
+        return {
+            "success": False,
+            "status": "api_error",
+            "code": 503,
+            "error": f"Connection failed: {str(e)}",
+            "status_code": 503
+        }
     except json.JSONDecodeError as e:
         return {
             "success": False,
@@ -216,10 +351,14 @@ def fetch_match_metadata(match_id: str) -> Dict[str, Any]:
     except Exception as e:
         return {
             "success": False,
-            "error": f"Request failed: {str(e)}"
+            "status": "api_error",
+            "code": 503,
+            "error": f"Request failed: {str(e)}",
+            "status_code": 503
         }
     finally:
-        conn.close()
+        if conn:
+            conn.close()
 
 
 def process_data(raw_data: Dict[str, Any]) -> Dict[str, Any]:
@@ -278,10 +417,18 @@ def main():
                        help='Optional parameter (e.g., item ID, class name, or match_id)')
     parser.add_argument('--mock', action='store_true',
                        help='Use mock data instead of calling the API')
+    parser.add_argument('--health-check', action='store_true',
+                       help='Perform API health check')
     
     args = parser.parse_args()
     
     try:
+        # Health check mode
+        if args.health_check:
+            health_status = check_api_status()
+            print(json.dumps(health_status, indent=2))
+            return
+        
         # If mock mode is enabled, return mock data
         if args.mock:
             if args.query == 'match':

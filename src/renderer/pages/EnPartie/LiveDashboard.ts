@@ -33,16 +33,42 @@ export class LiveDashboardPage {
         throw new Error('API not available');
       }
 
-      const response = await window.api.executePython('match', '54980378', mockModeEnabled);
+      const matchId = '54980378';
+      let response = await window.api.executePython('match', matchId, mockModeEnabled);
+      let usingCache = false;
       
-      if (!response.success) {
-        throw new Error(response.error || 'Failed to fetch match data');
+      // Check if response indicates API error or if we got cached data
+      if (response.cached) {
+        usingCache = true;
+        // Response already contains cached data
+      } else if (!response.success || response.status === 'api_error') {
+        // Try to load from cache
+        if (window.api?.getCachedMatch) {
+          const cachedMatch = await window.api.getCachedMatch(matchId);
+          if (cachedMatch) {
+            response = {
+              success: true,
+              data: cachedMatch,
+              cached: true,
+            };
+            usingCache = true;
+          } else {
+            throw new Error(response.error || 'Failed to fetch match data and no cache available');
+          }
+        } else {
+          throw new Error(response.error || 'Failed to fetch match data');
+        }
       }
 
       // Parse match data
       const matchInfo = response.data?.match_info || response.data;
       if (!matchInfo || !matchInfo.players) {
         throw new Error('Invalid match data structure');
+      }
+      
+      // Show cache indicator if using cached data
+      if (usingCache && this.container) {
+        this.showCacheIndicator();
       }
 
       // Process players and add lane information
@@ -81,6 +107,15 @@ export class LiveDashboardPage {
         players,
         teams: response.data?.teams || [],
       };
+
+      // Save to cache if not using cache and API call was successful
+      if (!usingCache && response.success && window.api?.cacheMatch && matchInfo.match_id) {
+        try {
+          await window.api.cacheMatch(matchId, this.matchData);
+        } catch (error) {
+          console.warn('Failed to cache match data:', error);
+        }
+      }
 
       this.renderMatchData();
     } catch (error) {
@@ -315,6 +350,32 @@ export class LiveDashboardPage {
     if (container) {
       container.insertBefore(errorDiv, container.firstChild);
     }
+  }
+
+  private showCacheIndicator(): void {
+    if (!this.container) return;
+
+    // Remove existing cache indicator if any
+    const existingIndicator = this.container.querySelector('.cache-indicator');
+    if (existingIndicator) {
+      existingIndicator.remove();
+    }
+
+    const cacheDiv = document.createElement('div');
+    cacheDiv.className = 'cache-indicator fixed top-16 right-4 z-40 bg-yellow-900/20 border border-yellow-500/50 rounded-lg p-3';
+    cacheDiv.innerHTML = `
+      <p class="text-yellow-400 text-sm font-semibold">Donnees en cache</p>
+      <p class="text-yellow-300 text-xs">L'API est indisponible. Affichage des dernieres donnees disponibles.</p>
+    `;
+
+    this.container.appendChild(cacheDiv);
+
+    // Auto-hide after 5 seconds
+    setTimeout(() => {
+      if (cacheDiv.parentNode) {
+        cacheDiv.remove();
+      }
+    }, 5000);
   }
 
   private attachEventListeners(): void {

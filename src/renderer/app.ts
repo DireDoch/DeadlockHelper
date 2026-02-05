@@ -5,6 +5,7 @@
 
 import { Sidebar, Page } from './components/Sidebar';
 import type { MainPage, SubPage } from '../lib/types';
+import { ApiStatusWidget } from './componentsUI/ApiStatusWidget';
 
 // Main pages
 import { ProfilPage } from './pages/Profil';
@@ -92,6 +93,9 @@ export class App {
     if (sidebarContainer) {
       this.sidebar.mount(sidebarContainer);
     }
+
+    // Mount API status widget in sidebar (single place for API diagnostic)
+    ApiStatusWidget.mount();
 
     // Get content container
     this.contentContainer = document.getElementById('content');

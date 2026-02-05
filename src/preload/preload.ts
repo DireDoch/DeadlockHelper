@@ -35,6 +35,27 @@ contextBridge.exposeInMainWorld('api', {
   
   setMockMode: (enabled: boolean) =>
     ipcRenderer.invoke('settings:setMockMode', enabled),
+  
+  // API Health operations
+  getApiAvailability: () =>
+    ipcRenderer.invoke('api:get-availability'),
+  
+  triggerHealthCheck: () =>
+    ipcRenderer.invoke('api:health-check'),
+  
+  // Cache operations
+  getCachedMatch: (matchId: string) =>
+    ipcRenderer.invoke('api:get-cached-match', matchId),
+  
+  cacheMatch: (matchId: string, matchData: any) =>
+    ipcRenderer.invoke('api:cache-match', matchId, matchData),
+  
+  // Health status change listener
+  onHealthStatusChange: (callback: (availability: number) => void) => {
+    ipcRenderer.on('api:health-alert', (event, availability: number) => {
+      callback(availability);
+    });
+  },
 });
 
 // Type declaration for TypeScript
@@ -48,6 +69,11 @@ declare global {
       authenticateSteam: (credentials: any) => Promise<any>;
       getMockMode: () => Promise<boolean>;
       setMockMode: (enabled: boolean) => Promise<any>;
+      getApiAvailability: () => Promise<number>;
+      triggerHealthCheck: () => Promise<any>;
+      getCachedMatch: (matchId: string) => Promise<any>;
+      cacheMatch: (matchId: string, matchData: any) => Promise<any>;
+      onHealthStatusChange: (callback: (availability: number) => void) => void;
     };
   }
 }

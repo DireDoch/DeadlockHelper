@@ -14,6 +14,7 @@ import {
   ChevronDoubleRightIcon
 } from './icons';
 import { MainPage, SubPage, NavigationItem } from '../../lib/types';
+import { ApiStatusWidget } from '../componentsUI/ApiStatusWidget';
 
 export type Page = MainPage | SubPage;
 
@@ -137,6 +138,10 @@ export class Sidebar {
           </ul>
         </nav>
 
+        <!-- API Status Widget -->
+        <div id="api-status-placeholder" class="p-3 border-t border-grey-600 min-h-[52px] flex items-center justify-center">
+          <div class="text-sm text-grey-500">…</div>
+        </div>
         <!-- Spotify Widget Placeholder -->
         <div id="spotify-widget-placeholder" class="p-4 border-t border-grey-600">
           <div class="flex items-center gap-3 text-grey-400">
@@ -406,6 +411,9 @@ export class Sidebar {
     if (spotifyText) {
       (spotifyText as HTMLElement).style.display = this.isOpen ? 'inline' : 'none';
     }
+
+    // Refresh API status widget (compact vs full layout)
+    ApiStatusWidget.refresh();
 
     // Update active states
     this.updateActiveStates();
