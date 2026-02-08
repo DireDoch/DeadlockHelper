@@ -15,6 +15,7 @@ import {
 } from './icons';
 import { MainPage, SubPage, NavigationItem } from '../../lib/types';
 import { ApiStatusWidget } from '../componentsUI/ApiStatusWidget';
+import { UserProfile } from '../componentsUI/UserProfile';
 
 export type Page = MainPage | SubPage;
 
@@ -138,6 +139,10 @@ export class Sidebar {
           </ul>
         </nav>
 
+        <!-- User Profile (Steam) -->
+        <div id="user-profile-placeholder" class="p-3 border-t border-grey-600 min-h-[52px] flex items-center justify-center">
+          <div class="text-sm text-grey-500">…</div>
+        </div>
         <!-- API Status Widget -->
         <div id="api-status-placeholder" class="p-3 border-t border-grey-600 min-h-[52px] flex items-center justify-center">
           <div class="text-sm text-grey-500">…</div>
@@ -414,6 +419,7 @@ export class Sidebar {
 
     // Refresh API status widget (compact vs full layout)
     ApiStatusWidget.refresh();
+    UserProfile.refresh();
 
     // Update active states
     this.updateActiveStates();
