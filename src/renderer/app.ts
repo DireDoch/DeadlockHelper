@@ -6,6 +6,7 @@
 import { Sidebar, Page } from './components/Sidebar';
 import type { MainPage, SubPage } from '../lib/types';
 import { ApiStatusWidget } from './componentsUI/ApiStatusWidget';
+import { UserProfile } from './componentsUI/UserProfile';
 
 // Main pages
 import { ProfilPage } from './pages/Profil';
@@ -94,8 +95,18 @@ export class App {
       this.sidebar.mount(sidebarContainer);
     }
 
-    // Mount API status widget in sidebar (single place for API diagnostic)
+    // Mount API status widget and user profile in sidebar
     ApiStatusWidget.mount();
+    UserProfile.mount();
+
+    if (window.api?.onSteamProfileUpdated) {
+      window.api.onSteamProfileUpdated(() => {
+        UserProfile.refresh();
+        if (this.currentPage === 'configuration') {
+          this.configurationPage.refresh();
+        }
+      });
+    }
 
     // Get content container
     this.contentContainer = document.getElementById('content');

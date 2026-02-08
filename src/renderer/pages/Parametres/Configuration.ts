@@ -2,14 +2,44 @@
  * Configuration - Sub Page
  */
 
+import { UserProfile } from '../../componentsUI/UserProfile';
+
+type SteamProfile = { steamId64: string; avatarUrl?: string; personaname?: string } | null;
+
 export class ConfigurationPage {
   private container: HTMLElement | null = null;
-  private mockModeEnabled: boolean = false;
+  private mockModeEnabled = false;
+  private steamProfile: SteamProfile = null;
 
   mount(container: HTMLElement): void {
     this.container = container;
-    this.loadMockModeState();
-    this.render();
+    this.container.addEventListener('click', this.boundHandleContainerClick);
+    Promise.all([this.loadMockModeState(), this.loadSteamProfile()]).then(() => this.render());
+  }
+
+  /** Called when Steam profile is updated (e.g. after login) so the page re-renders with new data. */
+  refresh(): void {
+    if (!this.container) return;
+    Promise.all([this.loadMockModeState(), this.loadSteamProfile()]).then(() => this.render());
+  }
+
+  private boundHandleContainerClick = (e: Event): void => {
+    const target = e.target as HTMLElement;
+    if (target.closest('#steam-connect-btn')) {
+      this.handleSteamStartAuth();
+    } else if (target.closest('#steam-disconnect-btn')) {
+      this.handleSteamLogout();
+    }
+  };
+
+  private async loadSteamProfile(): Promise<void> {
+    try {
+      if (window.api?.steamGetProfile) {
+        this.steamProfile = await window.api.steamGetProfile();
+      }
+    } catch (error) {
+      console.error('Failed to load Steam profile:', error);
+    }
   }
 
   private async loadMockModeState(): Promise<void> {
@@ -67,7 +97,6 @@ export class ConfigurationPage {
 
   private render(): void {
     if (!this.container) return;
-
     this.container.innerHTML = `
       <div class="p-8 bg-charcoal-100 min-h-screen">
         <div class="max-w-7xl mx-auto">
@@ -112,6 +141,42 @@ export class ConfigurationPage {
             </div>
           </div>
           
+          <!-- Compte Steam -->
+          <div class="bg-charcoal-200 rounded-lg p-6 border border-grey-600 mb-6">
+            <h3 class="text-lg font-semibold text-white mb-2">
+              Compte Steam
+            </h3>
+            <p class="text-sm text-grey-400 mb-4">
+              Connectez-vous avec Steam pour que l'application puisse afficher vos statistiques automatiquement.
+            </p>
+            <div id="steam-account-block">
+              ${this.steamProfile?.steamId64
+                ? `
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-4">
+                  ${this.steamProfile.avatarUrl
+                    ? `<img src="${this.steamProfile.avatarUrl}" alt="Profil" class="w-12 h-12 rounded-full border-2 border-grey-600 object-cover" />`
+                    : `<div class="w-12 h-12 rounded-full bg-charcoal-300 border-2 border-grey-600 flex items-center justify-center"><span class="text-grey-500">?</span></div>`
+                  }
+                  <div>
+                    <p class="text-white font-medium">${this.steamProfile.personaname || 'Compte Steam'}</p>
+                    <p class="text-xs text-grey-500">ID: ${this.steamProfile.steamId64}</p>
+                  </div>
+                </div>
+                <button id="steam-disconnect-btn" type="button" class="shrink-0 px-4 py-2 rounded-lg bg-red-600 text-white hover:bg-red-500 transition-colors border border-red-500 text-sm font-medium">
+                  Se déconnecter
+                </button>
+              </div>
+              `
+                : `
+              <button id="steam-connect-btn" type="button" class="px-4 py-2 rounded-lg bg-charcoal-300 text-frosted-mint-500 hover:bg-charcoal-400 hover:text-frosted-mint-400 transition-colors border border-grey-600 text-sm font-medium">
+                Se connecter avec Steam
+              </button>
+              `
+              }
+            </div>
+          </div>
+          
           <!-- Other settings placeholder -->
           <div class="bg-charcoal-200 rounded-lg p-6 border border-grey-600">
             <p class="text-grey-400">
@@ -131,6 +196,32 @@ export class ConfigurationPage {
       toggle.addEventListener('click', () => {
         this.toggleMockMode(!this.mockModeEnabled);
       });
+    }
+    // Steam buttons are handled via delegation in boundHandleContainerClick (mount)
+  }
+
+  private async handleSteamLogout(): Promise<void> {
+    try {
+      if (window.api?.steamLogout) {
+        await window.api.steamLogout();
+      }
+      // UI refresh is driven by steam:profile-updated from main (same as login)
+    } catch (error) {
+      console.error('Steam logout failed:', error);
+    }
+  }
+
+  private async handleSteamStartAuth(): Promise<void> {
+    try {
+      if (!window.api?.steamStartAuth) return;
+      const result = await window.api.steamStartAuth();
+      if (result.success) {
+        await this.loadSteamProfile();
+        this.render();
+        UserProfile.refresh();
+      }
+    } catch (error) {
+      console.error('Steam auth failed:', error);
     }
   }
 }

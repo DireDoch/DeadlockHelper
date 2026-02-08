@@ -23,11 +23,17 @@ contextBridge.exposeInMainWorld('api', {
     ipcRenderer.invoke('python:execute', { query, param, mockMode }),
   
   // Steam operations
-  detectSteam: () =>
-    ipcRenderer.invoke('steam:detect'),
+  steamStartAuth: () =>
+    ipcRenderer.invoke('steam:startAuth'),
   
-  authenticateSteam: (credentials: any) =>
-    ipcRenderer.invoke('steam:authenticate', credentials),
+  steamGetProfile: () =>
+    ipcRenderer.invoke('steam:getProfile'),
+  
+  steamLogout: () =>
+    ipcRenderer.invoke('steam:logout'),
+  
+  steamCheckInstallation: () =>
+    ipcRenderer.invoke('steam:checkInstallation'),
   
   // Mock mode operations
   getMockMode: () =>
@@ -56,6 +62,11 @@ contextBridge.exposeInMainWorld('api', {
       callback(availability);
     });
   },
+
+  // Steam profile updated (after login) – use to refresh UI
+  onSteamProfileUpdated: (callback: () => void) => {
+    ipcRenderer.on('steam:profile-updated', () => callback());
+  },
 });
 
 // Type declaration for TypeScript
@@ -65,8 +76,10 @@ declare global {
       request: (endpoint: string, options?: { method?: string; body?: any }) => Promise<any>;
       setToken: (token: string) => Promise<any>;
       executePython: (query: string, param?: string, mockMode?: boolean) => Promise<any>;
-      detectSteam: () => Promise<any>;
-      authenticateSteam: (credentials: any) => Promise<any>;
+      steamStartAuth: () => Promise<{ success: boolean; steamId64?: string; error?: string }>;
+      steamGetProfile: () => Promise<{ steamId64: string; avatarUrl?: string; personaname?: string } | null>;
+      steamLogout: () => Promise<void>;
+      steamCheckInstallation: () => Promise<{ installed: boolean; path: string | null; error?: string }>;
       getMockMode: () => Promise<boolean>;
       setMockMode: (enabled: boolean) => Promise<any>;
       getApiAvailability: () => Promise<number>;
@@ -74,6 +87,7 @@ declare global {
       getCachedMatch: (matchId: string) => Promise<any>;
       cacheMatch: (matchId: string, matchData: any) => Promise<any>;
       onHealthStatusChange: (callback: (availability: number) => void) => void;
+      onSteamProfileUpdated: (callback: () => void) => void;
     };
   }
 }
