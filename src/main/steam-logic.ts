@@ -26,6 +26,7 @@ interface SteamStoreShape {
   personaname?: string;
 }
 
+// Persists in app.getPath('userData') by default (electron-store in Electron main process)
 const steamStore = new Store<SteamStoreShape>({
   name: 'steam-profile',
   defaults: {

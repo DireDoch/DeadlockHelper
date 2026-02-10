@@ -50,7 +50,7 @@ const createWindow = () => {
 // Mock mode state (in-memory, can be migrated to config file later)
 let mockModeEnabled = false;
 
-// Initialize electron-store for health tracking and cache
+// Initialize electron-store for health tracking and cache (persists in app.getPath('userData') by default)
 const store = new Store<{
   apiHealth: {
     requestHistory: boolean[];
@@ -125,14 +125,16 @@ function calculateAvailability(): number {
  */
 async function performHealthCheck(): Promise<void> {
   const appPath = app.getAppPath();
-  const scriptPath = getDataProcessorScriptPath(appPath);
+  const isPackaged = app.isPackaged;
+  const scriptPath = getDataProcessorScriptPath(appPath, isPackaged);
+  const cwd = isPackaged ? path.dirname(scriptPath) : appPath;
   const debug = isPythonDebugEnabled();
 
   try {
     const { data } = await runPython<{ success?: boolean; status?: string }>({
       scriptPath,
       args: ['--health-check'],
-      cwd: appPath,
+      cwd,
       debug,
     });
     const success = Boolean(data?.success && data?.status !== 'api_error');
@@ -171,7 +173,9 @@ function setupIpcHandlers(): void {
   // Python script execution handler (uses python-runner abstraction)
   ipcMain.handle('python:execute', async (event, { query, param, mockMode }) => {
     const appPath = app.getAppPath();
-    const scriptPath = getDataProcessorScriptPath(appPath);
+    const isPackaged = app.isPackaged;
+    const scriptPath = getDataProcessorScriptPath(appPath, isPackaged);
+    const cwd = isPackaged ? path.dirname(scriptPath) : appPath;
     const useMockMode = mockMode !== undefined ? mockMode : mockModeEnabled;
     const args = ['--query', query || 'items'];
     if (useMockMode) args.push('--mock');
@@ -181,7 +185,7 @@ function setupIpcHandlers(): void {
       const { data: result } = await runPython<PythonQueryResult>({
         scriptPath,
         args,
-        cwd: appPath,
+        cwd,
         debug: isPythonDebugEnabled(),
       });
 

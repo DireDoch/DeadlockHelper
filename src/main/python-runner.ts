@@ -170,9 +170,13 @@ export function runPython<T = unknown>(options: RunPythonOptions): Promise<RunPy
 }
 
 /**
- * Resolve the path to the data_processor.py script relative to app root.
+ * Resolve the path to the data_processor.py script.
+ * When packaged (build), the script is in resources/python (extraResources); otherwise under app root src/python.
  */
-export function getDataProcessorScriptPath(appPath: string): string {
+export function getDataProcessorScriptPath(appPath: string, isPackaged: boolean): string {
+  if (isPackaged) {
+    return path.join(process.resourcesPath, 'python', 'data_processor.py');
+  }
   return path.join(appPath, 'src', 'python', 'data_processor.py');
 }
 
