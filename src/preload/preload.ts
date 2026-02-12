@@ -55,6 +55,9 @@ contextBridge.exposeInMainWorld('api', {
   
   cacheMatch: (matchId: string, matchData: any) =>
     ipcRenderer.invoke('api:cache-match', matchId, matchData),
+
+  getGameStatus: () =>
+    ipcRenderer.invoke('game:get-status'),
   
   // Health status change listener
   onHealthStatusChange: (callback: (availability: number) => void) => {
@@ -66,6 +69,25 @@ contextBridge.exposeInMainWorld('api', {
   // Steam profile updated (after login) – use to refresh UI
   onSteamProfileUpdated: (callback: () => void) => {
     ipcRenderer.on('steam:profile-updated', () => callback());
+  },
+
+  // Match status listeners (main process game detection)
+  onMatchStarted: (callback: (payload: { matchId: number; timestamp: number }) => void) => {
+    ipcRenderer.on('game:match-started', (_event, payload: { matchId: number; timestamp: number }) => {
+      callback(payload);
+    });
+  },
+
+  onMatchEnded: (callback: (payload: { matchId: number | null; timestamp: number }) => void) => {
+    ipcRenderer.on('game:match-ended', (_event, payload: { matchId: number | null; timestamp: number }) => {
+      callback(payload);
+    });
+  },
+
+  onGameProcessStatusChange: (callback: (payload: { isRunning: boolean; timestamp: number }) => void) => {
+    ipcRenderer.on('game:process-status', (_event, payload: { isRunning: boolean; timestamp: number }) => {
+      callback(payload);
+    });
   },
 });
 
@@ -86,8 +108,12 @@ declare global {
       triggerHealthCheck: () => Promise<any>;
       getCachedMatch: (matchId: string) => Promise<any>;
       cacheMatch: (matchId: string, matchData: any) => Promise<any>;
+      getGameStatus: () => Promise<{ isRunning: boolean; inMatch: boolean; matchId: number | null; timestamp: number }>;
       onHealthStatusChange: (callback: (availability: number) => void) => void;
       onSteamProfileUpdated: (callback: () => void) => void;
+      onMatchStarted: (callback: (payload: { matchId: number; timestamp: number }) => void) => void;
+      onMatchEnded: (callback: (payload: { matchId: number | null; timestamp: number }) => void) => void;
+      onGameProcessStatusChange: (callback: (payload: { isRunning: boolean; timestamp: number }) => void) => void;
     };
   }
 }

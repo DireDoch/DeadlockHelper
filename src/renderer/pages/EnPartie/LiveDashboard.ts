@@ -11,11 +11,39 @@ export class LiveDashboardPage {
   private isLoading: boolean = false;
   private matchData: MatchData | null = null;
   private heroCache: Map<number, HeroData> = new Map();
+  private detectedMatchId: string | null = null;
 
   mount(container: HTMLElement): void {
     this.container = container;
     this.render();
     this.loadMatchData();
+  }
+
+  handleDetectedMatch(matchId: number): void {
+    this.detectedMatchId = String(matchId);
+    localStorage.setItem('detectedMatchId', this.detectedMatchId);
+
+    // Refresh immediately when already mounted.
+    if (this.container) {
+      this.loadMatchData();
+    }
+  }
+
+  clearDetectedMatchId(): void {
+    this.detectedMatchId = null;
+    localStorage.removeItem('detectedMatchId');
+  }
+
+  private resolveMatchId(): string {
+    if (this.detectedMatchId) return this.detectedMatchId;
+
+    const storedMatchId = localStorage.getItem('detectedMatchId');
+    if (storedMatchId) {
+      this.detectedMatchId = storedMatchId;
+      return storedMatchId;
+    }
+
+    return '57331114';
   }
 
   private async loadMatchData(): Promise<void> {
@@ -33,7 +61,7 @@ export class LiveDashboardPage {
         throw new Error('API not available');
       }
 
-      const matchId = '54980378';
+      const matchId = this.resolveMatchId();
       let response = await window.api.executePython('match', matchId, mockModeEnabled);
       let usingCache = false;
       

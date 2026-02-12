@@ -6,6 +6,7 @@
 import { Sidebar, Page } from './components/Sidebar';
 import type { MainPage, SubPage } from '../lib/types';
 import { ApiStatusWidget } from './componentsUI/ApiStatusWidget';
+import { GameStatusIndicator } from './componentsUI/GameStatusIndicator';
 import { UserProfile } from './componentsUI/UserProfile';
 
 // Main pages
@@ -86,6 +87,7 @@ export class App {
         <main id="content" class="flex-1 overflow-y-auto transition-all duration-300" style="margin-left: 16rem;">
           <!-- Content will be rendered here -->
         </main>
+        <div id="game-status-sticky" class="fixed top-4 right-4 z-70"></div>
       </div>
     `;
 
@@ -98,6 +100,7 @@ export class App {
     // Mount API status widget and user profile in sidebar
     ApiStatusWidget.mount();
     UserProfile.mount();
+    GameStatusIndicator.mount();
 
     if (window.api?.onSteamProfileUpdated) {
       window.api.onSteamProfileUpdated(() => {
@@ -105,6 +108,30 @@ export class App {
         if (this.currentPage === 'configuration') {
           this.configurationPage.refresh();
         }
+      });
+    }
+
+    // Redirection to live dashboard when a match is started
+    if (window.api?.onMatchStarted) {
+      window.api.onMatchStarted(({ matchId }) => {
+        this.liveDashboardPage.handleDetectedMatch(matchId);
+        GameStatusIndicator.refresh();
+        if (this.currentPage !== 'live-dashboard') {
+          this.sidebar.navigateTo('live-dashboard');
+        }
+      });
+    }
+
+    if (window.api?.onMatchEnded) {
+      window.api.onMatchEnded(() => {
+        this.liveDashboardPage.clearDetectedMatchId();
+        GameStatusIndicator.refresh();
+      });
+    }
+
+    if (window.api?.onGameProcessStatusChange) {
+      window.api.onGameProcessStatusChange(() => {
+        GameStatusIndicator.refresh();
       });
     }
 

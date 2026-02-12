@@ -4,6 +4,11 @@ import path from 'node:path';
 import Store from 'electron-store';
 import { setupSteamHandlers } from './steam-logic';
 import { runPython, getDataProcessorScriptPath, isPythonDebugEnabled } from './python-runner';
+import {
+  findActiveMatchByAccountId,
+  getDeadlockProcessStatus,
+  steamId64ToAccountId,
+} from './deadlock-detector';
 import started from 'electron-squirrel-startup';
 import type { ApiHealthStatus, CachedMatchData, MatchData } from '../lib/types';
 
@@ -69,11 +74,25 @@ const store = new Store<{
   },
 });
 
+// Read Steam profile data persisted by steam-logic.ts
+const steamProfileStore = new Store<{
+  steamId64: string | null;
+}>({
+  name: 'steam-profile',
+  defaults: {
+    steamId64: null,
+  },
+});
+
 // Heartbeat timer reference
 let heartbeatTimer: NodeJS.Timeout | null = null;
+let deadlockPollingTimer: NodeJS.Timeout | null = null;
 
 // Main window reference for sending health alerts
 let mainWindow: BrowserWindow | null = null;
+let lastGameRunning = false;
+let lastKnownMatchId: number | null = null;
+let lastApiCheckAt = 0;
 
 /**
  * Record API call result and update availability
@@ -165,6 +184,99 @@ function stopHeartbeat(): void {
   if (heartbeatTimer) {
     clearInterval(heartbeatTimer);
     heartbeatTimer = null;
+  }
+}
+
+function emitMatchStarted(matchId: number): void {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+
+  mainWindow.webContents.send('game:match-started', {
+    matchId,
+    timestamp: Date.now(),
+  });
+}
+
+function emitGameProcessStatus(isRunning: boolean): void {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+
+  mainWindow.webContents.send('game:process-status', {
+    isRunning,
+    timestamp: Date.now(),
+  });
+}
+
+function emitMatchEnded(matchId: number | null): void {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+
+  mainWindow.webContents.send('game:match-ended', {
+    matchId,
+    timestamp: Date.now(),
+  });
+}
+
+async function checkDeadlockAndMatchStatus(): Promise<void> {
+  const processStatus = getDeadlockProcessStatus();
+  const isRunning = processStatus.running;
+  const wasRunning = lastGameRunning;
+
+  if (!isRunning) {
+    if (wasRunning) {
+      emitGameProcessStatus(false);
+    }
+    if (lastGameRunning || lastKnownMatchId !== null) {
+      emitMatchEnded(lastKnownMatchId);
+    }
+    lastGameRunning = false;
+    lastKnownMatchId = null;
+    return;
+  }
+
+  if (!wasRunning) {
+    emitGameProcessStatus(true);
+  }
+  lastGameRunning = true;
+
+  const now = Date.now();
+  if (now - lastApiCheckAt < 20_000) return;
+  lastApiCheckAt = now;
+
+  const steamId64 = steamProfileStore.get('steamId64');
+  if (!steamId64) return;
+
+  const accountId = steamId64ToAccountId(steamId64);
+  if (accountId === null) return;
+
+  const { matchId } = await findActiveMatchByAccountId(accountId);
+
+  if (matchId && matchId !== lastKnownMatchId) {
+    lastKnownMatchId = matchId;
+    emitMatchStarted(matchId);
+    return;
+  }
+
+  if (!matchId && lastKnownMatchId !== null) {
+    emitMatchEnded(lastKnownMatchId);
+    lastKnownMatchId = null;
+  }
+}
+
+function startDeadlockPolling(): void {
+  // Initial check for responsiveness after app startup.
+  checkDeadlockAndMatchStatus().catch((error) => {
+    console.error('Initial Deadlock check failed:', error);
+  });
+
+  deadlockPollingTimer = setInterval(() => {
+    checkDeadlockAndMatchStatus().catch((error) => {
+      console.error('Deadlock polling failed:', error);
+    });
+  }, 20_000);
+}
+
+function stopDeadlockPolling(): void {
+  if (deadlockPollingTimer) {
+    clearInterval(deadlockPollingTimer);
+    deadlockPollingTimer = null;
   }
 }
 
@@ -266,6 +378,15 @@ function setupIpcHandlers(): void {
     }
     return null;
   });
+
+  ipcMain.handle('game:get-status', async () => {
+    return {
+      isRunning: lastGameRunning,
+      inMatch: lastKnownMatchId !== null,
+      matchId: lastKnownMatchId,
+      timestamp: Date.now(),
+    };
+  });
   
   // Setup Steam handlers
   setupSteamHandlers();
@@ -278,6 +399,7 @@ app.on('ready', () => {
   setupIpcHandlers();
   createWindow();
   startHeartbeat();
+  startDeadlockPolling();
 });
 
 // Quit when all windows are closed, except on macOS. There, it's common
@@ -285,6 +407,7 @@ app.on('ready', () => {
 // explicitly with Cmd + Q.
 app.on('window-all-closed', () => {
   stopHeartbeat();
+  stopDeadlockPolling();
   if (process.platform !== 'darwin') {
     app.quit();
   }

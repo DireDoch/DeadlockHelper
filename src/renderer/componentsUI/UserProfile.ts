@@ -81,7 +81,6 @@ async function renderToContainer(): Promise<void> {
   }
 
   container.innerHTML = renderContent(profile, installation, isOpen);
-
   const connectBtn = document.getElementById('user-profile-connect-btn');
   if (connectBtn) {
     connectBtn.addEventListener('click', async () => {
