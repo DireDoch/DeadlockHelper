@@ -2,6 +2,8 @@
  * ApiStatusWidget - Persistent sidebar widget showing API availability diagnostic
  */
 
+import { IngestionInstructionsModal } from './IngestionInstructionsModal';
+
 let lastAvailability = 100;
 
 function renderContent(availability: number, isOpen: boolean): string {
@@ -29,6 +31,28 @@ function renderContent(availability: number, isOpen: boolean): string {
         class="text-xs px-2 py-1 rounded bg-charcoal-300 text-grey-300 hover:text-frosted-mint-500 hover:bg-charcoal-400 transition-colors"
         type="button"
       >Vérifier</button>
+      <div class="relative group">
+        <button
+          id="api-ingestion-help-trigger"
+          class="text-xs font-semibold px-2 py-1 rounded border border-yellow-400/50 bg-yellow-500/15 text-yellow-300 hover:bg-yellow-500/25 hover:text-yellow-200 transition-colors animate-pulse"
+          type="button"
+          aria-label="Open ingestion instructions"
+        >Ingestion required for full match history</button>
+        <div
+          class="invisible opacity-0 pointer-events-none group-hover:visible group-hover:opacity-100 group-hover:pointer-events-auto absolute left-0 top-full mt-2 w-80 rounded-lg border border-yellow-400/40 bg-charcoal-100 p-3 shadow-xl z-50 transition-all duration-150"
+          role="tooltip"
+        >
+          <p class="text-xs text-white leading-relaxed mb-3">
+            Even with a healthy API, your personal matches can stay missing until ingestion is configured.
+            Enable it to unlock complete tracking and history pages.
+          </p>
+          <button
+            id="api-ingestion-open-btn"
+            class="w-full text-xs font-semibold px-3 py-2 rounded bg-frosted-mint-500/25 text-frosted-mint-500 hover:bg-frosted-mint-500/35 transition-colors"
+            type="button"
+          >Learn how to ingest now</button>
+        </div>
+      </div>
     </div>
   `;
 }
@@ -43,11 +67,23 @@ function renderToContainer(availability: number): void {
   btn?.addEventListener('click', () => {
     window.api?.triggerHealthCheck?.();
   });
+
+  const openIngestionBtn = document.getElementById(ApiStatusWidget.ingestionOpenButtonId);
+  openIngestionBtn?.addEventListener('click', () => {
+    IngestionInstructionsModal.open();
+  });
+
+  const ingestionTrigger = document.getElementById(ApiStatusWidget.ingestionTriggerButtonId);
+  ingestionTrigger?.addEventListener('click', () => {
+    IngestionInstructionsModal.open();
+  });
 }
 
 export const ApiStatusWidget = {
   containerId: 'api-status-placeholder',
   refreshButtonId: 'api-status-refresh-btn',
+  ingestionOpenButtonId: 'api-ingestion-open-btn',
+  ingestionTriggerButtonId: 'api-ingestion-help-trigger',
 
   mount(): void {
     const container = document.getElementById(this.containerId);

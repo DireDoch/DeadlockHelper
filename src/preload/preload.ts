@@ -5,7 +5,7 @@
  * Never enable nodeIntegration in the renderer for security reasons.
  */
 
-import { contextBridge, ipcRenderer } from 'electron';
+import { clipboard, contextBridge, ipcRenderer } from 'electron';
 
 // Expose protected methods that allow the renderer process to use
 // the ipcRenderer without exposing the entire object
@@ -58,6 +58,22 @@ contextBridge.exposeInMainWorld('api', {
 
   getGameStatus: () =>
     ipcRenderer.invoke('game:get-status'),
+
+  copyToClipboard: async (text: string) => {
+    if (typeof text !== 'string' || text.length === 0) {
+      return false;
+    }
+    try {
+      clipboard.writeText(text);
+      return true;
+    } catch {
+      try {
+        return (await ipcRenderer.invoke('clipboard:write-text', text)) === true;
+      } catch {
+        return false;
+      }
+    }
+  },
   
   // Health status change listener
   onHealthStatusChange: (callback: (availability: number) => void) => {
@@ -109,6 +125,7 @@ declare global {
       getCachedMatch: (matchId: string) => Promise<any>;
       cacheMatch: (matchId: string, matchData: any) => Promise<any>;
       getGameStatus: () => Promise<{ isRunning: boolean; inMatch: boolean; matchId: number | null; timestamp: number }>;
+      copyToClipboard: (text: string) => Promise<boolean>;
       onHealthStatusChange: (callback: (availability: number) => void) => void;
       onSteamProfileUpdated: (callback: () => void) => void;
       onMatchStarted: (callback: (payload: { matchId: number; timestamp: number }) => void) => void;
