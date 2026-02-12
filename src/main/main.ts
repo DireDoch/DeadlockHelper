@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import { app, BrowserWindow, ipcMain } from 'electron';
+import { app, BrowserWindow, clipboard, ipcMain } from 'electron';
 import path from 'node:path';
 import Store from 'electron-store';
 import { setupSteamHandlers } from './steam-logic';
@@ -386,6 +386,14 @@ function setupIpcHandlers(): void {
       matchId: lastKnownMatchId,
       timestamp: Date.now(),
     };
+  });
+
+  ipcMain.handle('clipboard:write-text', async (_event, text: string) => {
+    if (typeof text !== 'string' || text.length === 0) {
+      return false;
+    }
+    clipboard.writeText(text);
+    return true;
   });
   
   // Setup Steam handlers
