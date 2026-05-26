@@ -109,6 +109,9 @@ export interface MatchData {
   [key: string]: any; // Allow additional fields from API
 }
 
+// Game state as reported by the background detector
+export type GameState = 'GAME_CLOSED' | 'GAME_MENU' | 'GAME_IN_MATCH';
+
 // API Health Monitoring Types
 export interface ApiHealthStatus {
   availability: number;

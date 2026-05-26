@@ -1,5 +1,8 @@
-import { execSync } from 'node:child_process';
+import { exec } from 'node:child_process';
 import * as fs from 'node:fs';
+import { promisify } from 'node:util';
+
+const execAsync = promisify(exec);
 
 const DEADLOCK_PROCESS_NAME = 'Deadlock.exe';
 const DEADLOCK_PROCESS_NAME_LOWER = DEADLOCK_PROCESS_NAME.toLowerCase();
@@ -26,45 +29,39 @@ interface ActiveMatchEntry {
   players?: ActiveMatchPlayer[];
 }
 
-/**
- * Detect whether Deadlock.exe is currently running on Windows.
- */
-export function getDeadlockProcessStatus(
+export async function getDeadlockProcessStatus(
   executablePath = DEFAULT_DEADLOCK_EXE_PATH,
-): DeadlockProcessStatus {
+): Promise<DeadlockProcessStatus> {
   const executableExists = fs.existsSync(executablePath);
 
-  if (process.platform !== 'win32') {
-    return {
-      running: false,
-      executableExists,
-      executablePath,
-    };
+  if (process.platform === 'linux') {
+    try {
+      // pgrep exits with code 1 (throws) when no match found
+      const { stdout } = await execAsync('pgrep -f "[Dd]eadlock.exe"');
+      return { running: stdout.trim().length > 0, executableExists, executablePath };
+    } catch {
+      return { running: false, executableExists, executablePath };
+    }
   }
 
-  try {
-    const output = execSync(
-      `tasklist /FI "IMAGENAME eq ${DEADLOCK_PROCESS_NAME}" /FO CSV /NH`,
-      { encoding: 'utf8' },
-    ).trim();
-
-    return {
-      running: output.toLowerCase().includes(`"${DEADLOCK_PROCESS_NAME_LOWER}"`),
-      executableExists,
-      executablePath,
-    };
-  } catch {
-    return {
-      running: false,
-      executableExists,
-      executablePath,
-    };
+  if (process.platform === 'win32') {
+    try {
+      const { stdout } = await execAsync(
+        `tasklist /FI "IMAGENAME eq ${DEADLOCK_PROCESS_NAME}" /FO CSV /NH`,
+      );
+      return {
+        running: stdout.trim().toLowerCase().includes(`"${DEADLOCK_PROCESS_NAME_LOWER}"`),
+        executableExists,
+        executablePath,
+      };
+    } catch {
+      return { running: false, executableExists, executablePath };
+    }
   }
+
+  return { running: false, executableExists, executablePath };
 }
 
-/**
- * Convert SteamID64 to account_id used by Deadlock API.
- */
 export function steamId64ToAccountId(steamId64: string): number | null {
   try {
     const steamIdBigInt = BigInt(steamId64);
@@ -78,9 +75,6 @@ export function steamId64ToAccountId(steamId64: string): number | null {
   }
 }
 
-/**
- * Confirm active match from Deadlock API by account_id.
- */
 export async function findActiveMatchByAccountId(
   accountId: number,
   timeoutMs = 5000,
@@ -98,9 +92,7 @@ export async function findActiveMatchByAccountId(
       },
     );
 
-    if (!response.ok) {
-      return { matchId: null };
-    }
+    if (!response.ok) return { matchId: null };
 
     const data = (await response.json()) as ActiveMatchEntry[];
     if (!Array.isArray(data)) return { matchId: null };
@@ -109,12 +101,8 @@ export async function findActiveMatchByAccountId(
       const matchId = match.match_id;
       if (!matchId || !Array.isArray(match.players)) continue;
 
-      const hasPlayer = match.players.some(
-        (player) => player.account_id === accountId,
-      );
-      if (hasPlayer) {
-        return { matchId };
-      }
+      const hasPlayer = match.players.some((player) => player.account_id === accountId);
+      if (hasPlayer) return { matchId };
     }
 
     return { matchId: null };

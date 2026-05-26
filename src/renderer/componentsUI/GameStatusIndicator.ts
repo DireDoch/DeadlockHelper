@@ -2,30 +2,36 @@ type GameStatus = {
   isRunning: boolean;
   inMatch: boolean;
   matchId: number | null;
+  state?: 'GAME_CLOSED' | 'GAME_MENU' | 'GAME_IN_MATCH';
   timestamp: number;
 };
 
 const containerId = 'game-status-sticky';
 
 function getStatusUi(status: GameStatus): { label: string; classes: string; dotClasses: string } {
-  if (status.inMatch) {
+  const state = status.state;
+
+  const inMatch = state === 'GAME_IN_MATCH' || (!state && status.inMatch);
+  const isRunning = state === 'GAME_MENU' || (!state && status.isRunning);
+
+  if (inMatch) {
     return {
       label: 'En jeu',
       classes: 'text-frosted-mint-500 border-frosted-mint-500/40 bg-frosted-mint-500/10',
-      dotClasses: 'bg-frosted-mint-500',
+      dotClasses: 'bg-frosted-mint-500 animate-pulse',
     };
   }
 
-  if (status.isRunning) {
+  if (isRunning) {
     return {
-      label: 'Deadlock lance',
+      label: 'Deadlock lancé',
       classes: 'text-blue-400 border-blue-500/40 bg-blue-500/10',
       dotClasses: 'bg-blue-400',
     };
   }
 
   return {
-    label: 'Deadlock non lance',
+    label: 'Deadlock non lancé',
     classes: 'text-grey-300 border-grey-600 bg-charcoal-300',
     dotClasses: 'bg-grey-500',
   };
@@ -55,6 +61,7 @@ async function renderToContainer(): Promise<void> {
     isRunning: false,
     inMatch: false,
     matchId: null,
+    state: 'GAME_CLOSED',
     timestamp: Date.now(),
   };
 

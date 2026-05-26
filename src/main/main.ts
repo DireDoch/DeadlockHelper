@@ -11,7 +11,7 @@ import {
   steamId64ToAccountId,
 } from './deadlock-detector';
 import started from 'electron-squirrel-startup';
-import type { ApiHealthStatus, CachedMatchData, MatchData } from '../lib/types';
+import type { ApiHealthStatus, CachedMatchData, MatchData, GameState } from '../lib/types';
 
 /** Shape of JSON returned by data_processor.py (success, status, data, etc.) */
 interface PythonQueryResult {
@@ -94,6 +94,7 @@ let mainWindow: BrowserWindow | null = null;
 let lastGameRunning = false;
 let lastKnownMatchId: number | null = null;
 let lastApiCheckAt = 0;
+let lastGameState: GameState = 'GAME_CLOSED';
 
 /**
  * Record API call result and update availability
@@ -215,20 +216,33 @@ function emitMatchEnded(matchId: number | null): void {
   });
 }
 
+function emitGameStateChanged(state: GameState, matchId?: number): void {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+
+  mainWindow.webContents.send('game:state-changed', {
+    state,
+    matchId,
+    timestamp: Date.now(),
+  });
+}
+
 async function checkDeadlockAndMatchStatus(): Promise<void> {
-  const processStatus = getDeadlockProcessStatus();
+  const processStatus = await getDeadlockProcessStatus();
   const isRunning = processStatus.running;
   const wasRunning = lastGameRunning;
 
   if (!isRunning) {
     if (wasRunning) {
       emitGameProcessStatus(false);
-    }
-    if (lastGameRunning || lastKnownMatchId !== null) {
       emitMatchEnded(lastKnownMatchId);
     }
     lastGameRunning = false;
     lastKnownMatchId = null;
+
+    if (lastGameState !== 'GAME_CLOSED') {
+      lastGameState = 'GAME_CLOSED';
+      emitGameStateChanged('GAME_CLOSED');
+    }
     return;
   }
 
@@ -236,6 +250,12 @@ async function checkDeadlockAndMatchStatus(): Promise<void> {
     emitGameProcessStatus(true);
   }
   lastGameRunning = true;
+
+  // Transition to at least GAME_MENU as soon as process is detected
+  if (lastGameState === 'GAME_CLOSED') {
+    lastGameState = 'GAME_MENU';
+    emitGameStateChanged('GAME_MENU');
+  }
 
   const now = Date.now();
   if (now - lastApiCheckAt < 20_000) return;
@@ -249,15 +269,23 @@ async function checkDeadlockAndMatchStatus(): Promise<void> {
 
   const { matchId } = await findActiveMatchByAccountId(accountId);
 
-  if (matchId && matchId !== lastKnownMatchId) {
+  if (matchId !== null && matchId !== lastKnownMatchId) {
     lastKnownMatchId = matchId;
     emitMatchStarted(matchId);
+    if (lastGameState !== 'GAME_IN_MATCH') {
+      lastGameState = 'GAME_IN_MATCH';
+      emitGameStateChanged('GAME_IN_MATCH', matchId);
+    }
     return;
   }
 
-  if (!matchId && lastKnownMatchId !== null) {
+  if (matchId === null && lastKnownMatchId !== null) {
     emitMatchEnded(lastKnownMatchId);
     lastKnownMatchId = null;
+    if (lastGameState !== 'GAME_MENU') {
+      lastGameState = 'GAME_MENU';
+      emitGameStateChanged('GAME_MENU');
+    }
   }
 }
 
@@ -271,7 +299,7 @@ function startDeadlockPolling(): void {
     checkDeadlockAndMatchStatus().catch((error) => {
       console.error('Deadlock polling failed:', error);
     });
-  }, 20_000);
+  }, 7_000);
 }
 
 function stopDeadlockPolling(): void {
@@ -385,6 +413,7 @@ function setupIpcHandlers(): void {
       isRunning: lastGameRunning,
       inMatch: lastKnownMatchId !== null,
       matchId: lastKnownMatchId,
+      state: lastGameState,
       timestamp: Date.now(),
     };
   });

@@ -1,11 +1,5 @@
-/**
- * Preload script - Security bridge between Main and Renderer processes
- * 
- * This file exposes secure APIs to the renderer process via contextBridge.
- * Never enable nodeIntegration in the renderer for security reasons.
- */
-
 import { contextBridge, ipcRenderer } from 'electron';
+import type { GameState } from '../lib/types';
 
 // Expose protected methods that allow the renderer process to use
 // the ipcRenderer without exposing the entire object
@@ -89,6 +83,12 @@ contextBridge.exposeInMainWorld('api', {
       callback(payload);
     });
   },
+
+  onGameStateChanged: (callback: (payload: { state: GameState; matchId?: number; timestamp: number }) => void) => {
+    ipcRenderer.on('game:state-changed', (_event, payload: { state: GameState; matchId?: number; timestamp: number }) => {
+      callback(payload);
+    });
+  },
 });
 
 contextBridge.exposeInMainWorld('spotify', {
@@ -116,6 +116,8 @@ contextBridge.exposeInMainWorld('spotify', {
 
 // Type declaration for TypeScript
 declare global {
+  type GameState = 'GAME_CLOSED' | 'GAME_MENU' | 'GAME_IN_MATCH';
+
   interface Window {
     api: {
       request: (endpoint: string, options?: { method?: string; body?: any }) => Promise<any>;
@@ -131,12 +133,13 @@ declare global {
       triggerHealthCheck: () => Promise<any>;
       getCachedMatch: (matchId: string) => Promise<any>;
       cacheMatch: (matchId: string, matchData: any) => Promise<any>;
-      getGameStatus: () => Promise<{ isRunning: boolean; inMatch: boolean; matchId: number | null; timestamp: number }>;
+      getGameStatus: () => Promise<{ isRunning: boolean; inMatch: boolean; matchId: number | null; state: GameState; timestamp: number }>;
       onHealthStatusChange: (callback: (availability: number) => void) => void;
       onSteamProfileUpdated: (callback: () => void) => void;
       onMatchStarted: (callback: (payload: { matchId: number; timestamp: number }) => void) => void;
       onMatchEnded: (callback: (payload: { matchId: number | null; timestamp: number }) => void) => void;
       onGameProcessStatusChange: (callback: (payload: { isRunning: boolean; timestamp: number }) => void) => void;
+      onGameStateChanged: (callback: (payload: { state: GameState; matchId?: number; timestamp: number }) => void) => void;
     };
     spotify: {
       login: () => Promise<{ success: boolean; displayName?: string; error?: string }>;

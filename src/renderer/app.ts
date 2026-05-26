@@ -114,27 +114,16 @@ export class App {
       });
     }
 
-    // Redirection to live dashboard when a match is started
-    if (window.api?.onMatchStarted) {
-      window.api.onMatchStarted(({ matchId }) => {
-        this.liveDashboardPage.handleDetectedMatch(matchId);
+    if (window.api?.onGameStateChanged) {
+      window.api.onGameStateChanged(({ state, matchId }) => {
         GameStatusIndicator.refresh();
-        if (this.currentPage !== 'live-dashboard') {
-          this.sidebar.navigateTo('live-dashboard');
+        this.liveDashboardPage.handleGameStateChanged(state, matchId);
+
+        if (state === 'GAME_IN_MATCH' || state === 'GAME_MENU') {
+          if (this.currentPage !== 'live-dashboard') {
+            this.sidebar.navigateTo('live-dashboard');
+          }
         }
-      });
-    }
-
-    if (window.api?.onMatchEnded) {
-      window.api.onMatchEnded(() => {
-        this.liveDashboardPage.clearDetectedMatchId();
-        GameStatusIndicator.refresh();
-      });
-    }
-
-    if (window.api?.onGameProcessStatusChange) {
-      window.api.onGameProcessStatusChange(() => {
-        GameStatusIndicator.refresh();
       });
     }
 
