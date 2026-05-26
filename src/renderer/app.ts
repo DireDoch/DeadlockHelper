@@ -8,6 +8,8 @@ import type { MainPage, SubPage } from '../lib/types';
 import { ApiStatusWidget } from './componentsUI/ApiStatusWidget';
 import { GameStatusIndicator } from './componentsUI/GameStatusIndicator';
 import { UserProfile } from './componentsUI/UserProfile';
+import { SpotifyMiniPlayer } from './componentsUI/SpotifyMiniPlayer';
+import type { Page } from './components/Sidebar';
 
 // Main pages
 import { ProfilPage } from './pages/Profil';
@@ -101,6 +103,7 @@ export class App {
     ApiStatusWidget.mount();
     UserProfile.mount();
     GameStatusIndicator.mount();
+    SpotifyMiniPlayer.mount((page) => this.sidebar.navigateTo(page as Page));
 
     if (window.api?.onSteamProfileUpdated) {
       window.api.onSteamProfileUpdated(() => {

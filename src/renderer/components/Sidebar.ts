@@ -16,6 +16,7 @@ import {
 import { MainPage, SubPage, NavigationItem } from '../../lib/types';
 import { ApiStatusWidget } from '../componentsUI/ApiStatusWidget';
 import { UserProfile } from '../componentsUI/UserProfile';
+import { SpotifyMiniPlayer } from '../componentsUI/SpotifyMiniPlayer';
 
 export type Page = MainPage | SubPage;
 
@@ -147,15 +148,8 @@ export class Sidebar {
         <div id="api-status-placeholder" class="p-3 border-t border-grey-600 min-h-[52px] flex items-center justify-center">
           <div class="text-sm text-grey-500">…</div>
         </div>
-        <!-- Spotify Widget Placeholder -->
-        <div id="spotify-widget-placeholder" class="p-4 border-t border-grey-600">
-          <div class="flex items-center gap-3 text-grey-400">
-            <div class="w-8 h-8 bg-grey-700 rounded flex items-center justify-center shrink-0">
-              <span class="text-xs">🎵</span>
-            </div>
-            ${this.isOpen ? '<span class="text-sm">Spotify Widget (à venir)</span>' : ''}
-          </div>
-        </div>
+        <!-- Spotify Mini Player -->
+        <div id="spotify-widget-placeholder" class="px-3 py-3 border-t border-grey-600"></div>
       </aside>
     `;
   }
@@ -411,15 +405,10 @@ export class Sidebar {
       }
     });
 
-    // Update Spotify placeholder
-    const spotifyText = this.sidebarElement.querySelector('#spotify-widget-placeholder span:last-child');
-    if (spotifyText) {
-      (spotifyText as HTMLElement).style.display = this.isOpen ? 'inline' : 'none';
-    }
-
-    // Refresh API status widget (compact vs full layout)
+    // Refresh sidebar widgets (compact vs full layout)
     ApiStatusWidget.refresh();
     UserProfile.refresh();
+    SpotifyMiniPlayer.refresh();
 
     // Update active states
     this.updateActiveStates();

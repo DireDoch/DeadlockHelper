@@ -3,6 +3,7 @@ import { app, BrowserWindow, ipcMain } from 'electron';
 import path from 'node:path';
 import Store from 'electron-store';
 import { setupSteamHandlers } from './steam-logic';
+import { setupSpotifyHandlers } from './spotify-logic';
 import { runPython, getDataProcessorScriptPath, isPythonDebugEnabled } from './python-runner';
 import {
   findActiveMatchByAccountId,
@@ -390,6 +391,9 @@ function setupIpcHandlers(): void {
   
   // Setup Steam handlers
   setupSteamHandlers();
+
+  // Setup Spotify handlers
+  setupSpotifyHandlers();
 }
 
 // This method will be called when Electron has finished

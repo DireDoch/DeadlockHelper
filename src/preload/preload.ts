@@ -91,6 +91,29 @@ contextBridge.exposeInMainWorld('api', {
   },
 });
 
+contextBridge.exposeInMainWorld('spotify', {
+  login: () =>
+    ipcRenderer.invoke('spotify:login'),
+  logout: () =>
+    ipcRenderer.invoke('spotify:logout'),
+  getAuthStatus: () =>
+    ipcRenderer.invoke('spotify:getAuthStatus'),
+  play: (deviceId?: string) =>
+    ipcRenderer.invoke('spotify:play', deviceId),
+  pause: () =>
+    ipcRenderer.invoke('spotify:pause'),
+  next: () =>
+    ipcRenderer.invoke('spotify:next'),
+  previous: () =>
+    ipcRenderer.invoke('spotify:previous'),
+  getCurrentlyPlaying: () =>
+    ipcRenderer.invoke('spotify:getCurrentlyPlaying'),
+  getDevices: () =>
+    ipcRenderer.invoke('spotify:getDevices'),
+  transferDevice: (deviceId: string) =>
+    ipcRenderer.invoke('spotify:transferDevice', deviceId),
+});
+
 // Type declaration for TypeScript
 declare global {
   interface Window {
@@ -114,6 +137,25 @@ declare global {
       onMatchStarted: (callback: (payload: { matchId: number; timestamp: number }) => void) => void;
       onMatchEnded: (callback: (payload: { matchId: number | null; timestamp: number }) => void) => void;
       onGameProcessStatusChange: (callback: (payload: { isRunning: boolean; timestamp: number }) => void) => void;
+    };
+    spotify: {
+      login: () => Promise<{ success: boolean; displayName?: string; error?: string }>;
+      logout: () => Promise<{ success: boolean }>;
+      getAuthStatus: () => Promise<{ isAuthenticated: boolean; displayName: string | null }>;
+      play: (deviceId?: string) => Promise<{ success: boolean }>;
+      pause: () => Promise<{ success: boolean }>;
+      next: () => Promise<{ success: boolean }>;
+      previous: () => Promise<{ success: boolean }>;
+      getCurrentlyPlaying: () => Promise<{
+        title: string;
+        artist: string;
+        albumArtUrl: string | null;
+        isPlaying: boolean;
+        progressMs: number;
+        durationMs: number;
+      } | null>;
+      getDevices: () => Promise<Array<{ id: string; name: string; type: string; is_active: boolean; volume_percent: number }>>;
+      transferDevice: (deviceId: string) => Promise<{ success: boolean }>;
     };
   }
 }
