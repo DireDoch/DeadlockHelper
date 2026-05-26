@@ -50,6 +50,15 @@ const ICON_REGISTRY: Record<string, string> = {
   'ChevronDoubleLeftIcon': `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="m18.75 4.5-7.5 7.5 7.5 7.5m-6-15L5.25 12l7.5 7.5"></path>`,
   
   'ChevronDoubleRightIcon': `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="m5.25 4.5 7.5 7.5-7.5 7.5m6-15 7.5 7.5-7.5 7.5"></path>`,
+
+  // List Bullet - Leaderboard
+  'ListBulletIcon': `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.007v.008H3.75V6.75Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0ZM3.75 12h.007v.008H3.75V12Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm-.375 5.25h.007v.008H3.75v-.008Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z"/>`,
+
+  // Cube - Items & Builds
+  'CubeIcon': `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="m21 7.5-9-5.25L3 7.5m18 0-9 5.25m9-5.25v9l-9 5.25M3 7.5l9 5.25M3 7.5v9l9 5.25m0-9v9"/>`,
+
+  // Presentation Chart Bar - Rank Distribution
+  'PresentationChartBarIcon': `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3.75 3v11.25A2.25 2.25 0 0 0 6 16.5h2.25M3.75 3h-1.5m1.5 0h16.5m0 0h1.5m-1.5 0v11.25A2.25 2.25 0 0 1 18 16.5h-2.25m-7.5 0h7.5m-7.5 0-1 3m8.5-3 1 3m0 0 .5 1.5m-.5-1.5h-9.5m0 0-.5 1.5m.75-9 3-3 2.148 2.148A12.061 12.061 0 0 1 16.5 7.605"/>`,
 };
 
 /**
@@ -163,6 +172,18 @@ export const ChevronDoubleLeftIcon = (className: string = 'w-6 h-6') => {
  */
 export const ChevronDoubleRightIcon = (className: string = 'w-6 h-6') => {
   return createSVG(getIconPath('ChevronDoubleRightIcon'), className);
+};
+
+export const ListBulletIcon = (className: string = 'w-6 h-6') => {
+  return createSVG(getIconPath('ListBulletIcon'), className);
+};
+
+export const CubeIcon = (className: string = 'w-6 h-6') => {
+  return createSVG(getIconPath('CubeIcon'), className);
+};
+
+export const PresentationChartBarIcon = (className: string = 'w-6 h-6') => {
+  return createSVG(getIconPath('PresentationChartBarIcon'), className);
 };
 
 /**

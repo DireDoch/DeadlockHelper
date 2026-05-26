@@ -34,7 +34,8 @@ let navigateCb: ((page: string) => void) | null = null;
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function sidebarIsOpen(): boolean {
-  return document.getElementById('sidebar')?.classList.contains('w-64') ?? true;
+  // Widget is a fixed independent overlay — always rendered in full mode
+  return true;
 }
 
 function formatMs(ms: number): string {

@@ -5,11 +5,8 @@
 
 import { Sidebar, Page } from './components/Sidebar';
 import type { MainPage, SubPage } from '../lib/types';
-import { ApiStatusWidget } from './componentsUI/ApiStatusWidget';
 import { GameStatusIndicator } from './componentsUI/GameStatusIndicator';
 import { UserProfile } from './componentsUI/UserProfile';
-import { SpotifyMiniPlayer } from './componentsUI/SpotifyMiniPlayer';
-import type { Page } from './components/Sidebar';
 
 // Main pages
 import { ProfilPage } from './pages/Profil';
@@ -83,27 +80,25 @@ export class App {
     }
 
     // Create layout structure
+    // margin-left: 16rem correspond à w-64 — la sidebar est toujours à cette largeur
+    // pour que le widget Spotify en bas reste toujours entièrement visible.
     appContainer.innerHTML = `
       <div class="flex h-screen bg-charcoal-100">
         <div id="sidebar-container"></div>
-        <main id="content" class="flex-1 overflow-y-auto transition-all duration-300" style="margin-left: 16rem;">
+        <main id="content" class="flex-1 overflow-y-auto" style="margin-left: 16rem;">
           <!-- Content will be rendered here -->
         </main>
-        <div id="game-status-sticky" class="fixed top-4 right-4 z-70"></div>
+        <div id="game-status-sticky" class="fixed top-4 right-4 z-[70]"></div>
       </div>
     `;
 
-    // Mount sidebar
+    // Sidebar.mount() monte aussi UserProfile, ApiStatusWidget et SpotifyMiniPlayer
     const sidebarContainer = document.getElementById('sidebar-container');
     if (sidebarContainer) {
       this.sidebar.mount(sidebarContainer);
     }
 
-    // Mount API status widget and user profile in sidebar
-    ApiStatusWidget.mount();
-    UserProfile.mount();
     GameStatusIndicator.mount();
-    SpotifyMiniPlayer.mount((page) => this.sidebar.navigateTo(page as Page));
 
     if (window.api?.onSteamProfileUpdated) {
       window.api.onSteamProfileUpdated(() => {
@@ -133,9 +128,7 @@ export class App {
     // Initial page render
     this.renderPage(this.currentPage);
 
-    // Handle window resize for responsive sidebar
-    window.addEventListener('resize', () => this.handleResize());
-    this.handleResize();
+    // No resize handling needed: sidebar is overlay mode (content margin fixed at 4rem)
   }
 
   private handlePageChange(page: Page): void {
@@ -281,14 +274,4 @@ export class App {
     return subPages.includes(page as SubPage);
   }
 
-  private handleResize(): void {
-    // Adjust main content margin based on sidebar state
-    const content = this.contentContainer;
-    const sidebar = document.getElementById('sidebar');
-    
-    if (content && sidebar) {
-      const sidebarWidth = sidebar.classList.contains('w-64') ? '16rem' : '5rem';
-      content.style.marginLeft = sidebarWidth;
-    }
-  }
 }
