@@ -10,7 +10,34 @@
     "package": "electron-forge package",
     "make": "electron-forge make",
     "publish": "electron-forge publish",
-    "lint": "eslint --ext .ts,.tsx ."
+    "lint": "eslint --ext .ts,.tsx .",
+    "build:vite": "vite build --config vite.renderer.config.mjs && vite build --config vite.main.config.ts && vite build --config vite.preload.config.ts",
+    "build:linux": "npm run build:vite && electron-builder --linux",
+    "build:linux:appimage": "npm run build:vite && electron-builder --linux AppImage",
+    "build:linux:deb": "npm run build:vite && electron-builder --linux deb"
+  },
+  "build": {
+    "appId": "com.diredoch.deadlockhelper",
+    "productName": "DeadlockHelper",
+    "asar": true,
+    "extraResources": [
+      { "from": "src/python", "to": "python", "filter": ["**/*"] }
+    ],
+    "files": [
+      ".vite/**/*",
+      "package.json"
+    ],
+    "linux": {
+      "target": ["AppImage", "deb", "rpm"],
+      "category": "Game",
+      "icon": "src/renderer/assets/icon.png"
+    },
+    "deb": {
+      "depends": ["python3", "python3-requests", "libnotify4", "libxtst6", "libnss3"]
+    },
+    "rpm": {
+      "depends": ["python3", "python3-requests", "libnotify", "libXtst", "nss"]
+    }
   },
   "keywords": [],
   "author": {
@@ -33,6 +60,7 @@
     "@typescript-eslint/parser": "^5.62.0",
     "autoprefixer": "^10.4.23",
     "electron": "40.1.0",
+    "electron-builder": "^26.8.1",
     "eslint": "^8.57.1",
     "eslint-plugin-import": "^2.32.0",
     "postcss": "^8.5.6",
@@ -43,6 +71,7 @@
   "dependencies": {
     "@heroicons/react": "^2.2.0",
     "@tailwindcss/vite": "^4.1.18",
+    "dotenv": "^17.4.2",
     "electron-squirrel-startup": "^1.0.1",
     "electron-store": "^10.1.0"
   }
