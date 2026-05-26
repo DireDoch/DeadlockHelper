@@ -8,19 +8,19 @@ type SteamProfile = { steamId64: string; avatarUrl?: string; personaname?: strin
 
 export class ConfigurationPage {
   private container: HTMLElement | null = null;
-  private mockModeEnabled = false;
+  private demoModeEnabled = false;
   private steamProfile: SteamProfile = null;
 
   mount(container: HTMLElement): void {
     this.container = container;
     this.container.addEventListener('click', this.boundHandleContainerClick);
-    Promise.all([this.loadMockModeState(), this.loadSteamProfile()]).then(() => this.render());
+    Promise.all([this.loadDemoModeState(), this.loadSteamProfile()]).then(() => this.render());
   }
 
   /** Called when Steam profile is updated (e.g. after login) so the page re-renders with new data. */
   refresh(): void {
     if (!this.container) return;
-    Promise.all([this.loadMockModeState(), this.loadSteamProfile()]).then(() => this.render());
+    Promise.all([this.loadDemoModeState(), this.loadSteamProfile()]).then(() => this.render());
   }
 
   private boundHandleContainerClick = (e: Event): void => {
@@ -42,56 +42,49 @@ export class ConfigurationPage {
     }
   }
 
-  private async loadMockModeState(): Promise<void> {
+  private async loadDemoModeState(): Promise<void> {
     try {
-      // Try to load from localStorage first (for quick access)
-      const stored = localStorage.getItem('mockModeEnabled');
+      const stored = localStorage.getItem('demoModeEnabled');
       if (stored !== null) {
-        this.mockModeEnabled = stored === 'true';
+        this.demoModeEnabled = stored === 'true';
       } else {
-        // Fallback to IPC if not in localStorage
-        if (window.api?.getMockMode) {
-          this.mockModeEnabled = await window.api.getMockMode();
+        // Migrate old mockModeEnabled key if present
+        const legacy = localStorage.getItem('mockModeEnabled');
+        if (legacy !== null) {
+          this.demoModeEnabled = legacy === 'true';
+          localStorage.setItem('demoModeEnabled', legacy);
+          localStorage.removeItem('mockModeEnabled');
         }
       }
     } catch (error) {
-      console.error('Failed to load mock mode state:', error);
+      console.error('Failed to load demo mode state:', error);
     }
   }
 
-  private async toggleMockMode(enabled: boolean): Promise<void> {
+  private async toggleDemoMode(enabled: boolean): Promise<void> {
     try {
-      this.mockModeEnabled = enabled;
-      
-      // Save to localStorage
-      localStorage.setItem('mockModeEnabled', enabled.toString());
-      
-      // Sync with main process
-      if (window.api?.setMockMode) {
-        await window.api.setMockMode(enabled);
-      }
-      
-      // Update UI
+      this.demoModeEnabled = enabled;
+      localStorage.setItem('demoModeEnabled', enabled.toString());
       this.updateToggleUI();
     } catch (error) {
-      console.error('Failed to toggle mock mode:', error);
+      console.error('Failed to toggle demo mode:', error);
     }
   }
 
   private updateToggleUI(): void {
     const toggle = document.getElementById('mock-mode-toggle');
     const indicator = document.getElementById('mock-mode-indicator');
-    
+
     if (toggle) {
-      toggle.setAttribute('aria-checked', this.mockModeEnabled.toString());
-      toggle.classList.toggle('bg-frosted-mint-500', this.mockModeEnabled);
-      toggle.classList.toggle('bg-grey-600', !this.mockModeEnabled);
+      toggle.setAttribute('aria-checked', this.demoModeEnabled.toString());
+      toggle.classList.toggle('bg-frosted-mint-500', this.demoModeEnabled);
+      toggle.classList.toggle('bg-grey-600', !this.demoModeEnabled);
     }
-    
+
     if (indicator) {
-      indicator.textContent = this.mockModeEnabled ? 'Actif' : 'Inactif';
-      indicator.classList.toggle('text-frosted-mint-500', this.mockModeEnabled);
-      indicator.classList.toggle('text-grey-400', !this.mockModeEnabled);
+      indicator.textContent = this.demoModeEnabled ? 'Actif' : 'Inactif';
+      indicator.classList.toggle('text-frosted-mint-500', this.demoModeEnabled);
+      indicator.classList.toggle('text-grey-400', !this.demoModeEnabled);
     }
   }
 
@@ -115,26 +108,26 @@ export class ConfigurationPage {
                   Mode Démo
                 </h3>
                 <p class="text-sm text-grey-400 mb-1">
-                  Active les données fictives pour tester l'interface sans lancer Steam ou appeler l'API réelle.
+                  Simule une partie en utilisant de vrais Match IDs (80659633, 83547202, 80457157). Le bouton Refresh dans le Live Dashboard fait défiler cycliquement ces parties.
                 </p>
                 <p class="text-xs text-grey-500">
-                  <span id="mock-mode-indicator" class="font-semibold ${this.mockModeEnabled ? 'text-frosted-mint-500' : 'text-grey-400'}">
-                    ${this.mockModeEnabled ? 'Actif' : 'Inactif'}
+                  <span id="mock-mode-indicator" class="font-semibold ${this.demoModeEnabled ? 'text-frosted-mint-500' : 'text-grey-400'}">
+                    ${this.demoModeEnabled ? 'Actif' : 'Inactif'}
                   </span>
                 </p>
               </div>
               <button
                 id="mock-mode-toggle"
                 role="switch"
-                aria-checked="${this.mockModeEnabled}"
+                aria-checked="${this.demoModeEnabled}"
                 aria-label="Toggle Mode Démo"
                 class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-frosted-mint-500 focus:ring-offset-2 focus:ring-offset-charcoal-200 ${
-                  this.mockModeEnabled ? 'bg-frosted-mint-500' : 'bg-grey-600'
+                  this.demoModeEnabled ? 'bg-frosted-mint-500' : 'bg-grey-600'
                 }"
               >
                 <span
                   class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                    this.mockModeEnabled ? 'translate-x-5' : 'translate-x-0'
+                    this.demoModeEnabled ? 'translate-x-5' : 'translate-x-0'
                   }"
                 ></span>
               </button>
@@ -194,7 +187,7 @@ export class ConfigurationPage {
     const toggle = document.getElementById('mock-mode-toggle');
     if (toggle) {
       toggle.addEventListener('click', () => {
-        this.toggleMockMode(!this.mockModeEnabled);
+        this.toggleDemoMode(!this.demoModeEnabled);
       });
     }
     // Steam buttons are handled via delegation in boundHandleContainerClick (mount)

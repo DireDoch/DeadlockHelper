@@ -74,6 +74,65 @@ export interface HeroData {
 // Match and Player types for Live Dashboard
 export type Lane = 'yellow' | 'blue' | 'green';
 
+// From /v1/players/hero-stats (per account_id + hero_id combo)
+export interface HeroStats {
+  account_id: number;
+  hero_id: number;
+  matches_played: number;
+  wins: number;
+  kills: number;
+  deaths: number;
+  assists: number;
+  last_played: number;
+}
+
+// From /v1/players/mmr?account_ids=... (latest entry per player)
+export interface MMREntry {
+  account_id: number;
+  match_id: number;
+  start_time: number;
+  rank: number; // badge level 0–116 (tier = rank//10, subrank = rank%10)
+  division: number; // rank // 10
+  division_tier: number; // rank % 10
+}
+
+// From /v1/players/mmr/distribution
+export interface RankDistributionEntry {
+  rank: number;
+  players: number;
+}
+
+// From /v1/assets/ranks
+export interface RankAsset {
+  tier: number;
+  name: string;
+  images: {
+    small?: string;
+    small_webp?: string;
+    large?: string;
+    [key: string]: string | undefined;
+  };
+  color?: string;
+}
+
+// From /v1/players/{account_id}/match-history (single entry)
+export interface MatchHistoryEntry {
+  account_id: number;
+  match_id: number;
+  hero_id: number;
+  start_time: number;
+  match_result: number; // 1 = win typically
+  player_kills: number;
+  player_deaths: number;
+  player_assists: number;
+  match_duration_s: number;
+}
+
+export interface ActivityStats {
+  games: number;
+  wins: number;
+}
+
 export interface Player {
   account_id: number;
   player_slot: number;
@@ -81,19 +140,31 @@ export interface Player {
   hero_name?: string;
   team: 0 | 1;
   lane?: Lane;
-  assigned_lane?: number; // Lane number from API (0=yellow, 1=blue, 2=green)
+  assigned_lane?: number; // Lane number from API (1=blue, 4=yellow, 6=green)
   kills: number;
   deaths: number;
   assists: number;
   kda?: string; // Formatted KDA string (e.g., "2.5/1.2/3.1")
   level: number;
   net_worth?: number;
-  rank?: number; // Badge/rank number
+  rank?: number; // Legacy badge number (from mock data)
   name?: string; // Player username
-  winrate?: number; // Winrate percentage
+  winrate?: number; // Account-wide winrate (legacy)
   total_matches?: number;
   steamProfile?: SteamProfile;
   heroData?: HeroData;
+  // --- New fields from enrichment fetches ---
+  heroWinrate?: number; // win% with this hero (0–100)
+  heroMatchesPlayed?: number; // total matches played with this hero
+  heroAvgKills?: number; // kills / matches_played for this hero
+  heroAvgDeaths?: number;
+  heroAvgAssists?: number;
+  rankBadgeLevel?: number; // badge level 0–116 from /v1/players/mmr
+  rankName?: string; // e.g. "Arcanist II"
+  rankImageUrl?: string; // official badge image URL from /v1/assets/ranks
+  rankTopPercent?: number; // position in global player base (e.g. 74 = Top 74%)
+  activity12h?: ActivityStats;
+  activity30d?: ActivityStats;
 }
 
 export interface MatchData {
