@@ -32,7 +32,13 @@ import type {
   ItemData,
   AbilityOrderStats,
   HeroAbilityItem,
+  ItemsPeriod,
+  ItemsRankFilter,
+  ApiItemStat,
+  AnalyticsHeroStat,
+  ItemStatRow,
 } from '../../../lib/types';
+import { RANKS } from '../../../lib/constants/ranks';
 
 const API = 'https://api.deadlock-api.com';
 
@@ -105,6 +111,13 @@ function itemStatLines(item: ItemData): string[] {
   return lines;
 }
 
+// ── Hero tier badge labels ────────────────────────────────────────────────────
+const TIER_LABEL: Record<number, string> = { 1: 'I', 2: 'II', 3: 'III', 4: 'IV' };
+
+// ── Items tab sort types ──────────────────────────────────────────────────────
+type ItemsSortCol = 'name' | 'cost' | 'winRate' | 'winRateChange' | 'usage' | 'usageChange' | 'winloss';
+type ItemsSortDir = 'asc' | 'desc';
+
 // ── Tab definitions ───────────────────────────────────────────────────────────
 type Tab = 'builds' | 'items' | 'skill-path' | 'overview' | 'lore';
 const TABS: { id: Tab; label: string }[] = [
@@ -131,6 +144,21 @@ export class HeroDetailsPage {
   private abilityStats: AbilityOrderStats[] = [];
   private items: Map<number, ItemData> = new Map();
 
+  // ── Items tab state ─────────────────────────────────────────────────────────
+  private itemsPeriod: ItemsPeriod = 'latest';
+  private itemsRank: ItemsRankFilter = { mode: 'all', tier: 0 };
+  private itemsTiers: Set<number> = new Set([1, 2, 3, 4]);
+  private itemsCurrentStats: ApiItemStat[] = [];
+  private itemsRefStats: ApiItemStat[] = [];
+  private heroMatchesCur = 0;
+  private heroMatchesRef = 0;
+  private patchDays: string[] = [];
+  private itemsLoading = false;
+  private itemsLoaded = false;
+  private itemsError = false;
+  private itemsSortCol: ItemsSortCol = 'usage';
+  private itemsSortDir: ItemsSortDir = 'desc';
+
   // ── Public API ──────────────────────────────────────────────────────────────
 
   mountWithHero(container: HTMLElement, hero: HeroData): void {
@@ -143,6 +171,20 @@ export class HeroDetailsPage {
     this.heroAbilities = [];
     this.abilityStats = [];
     this.items = new Map();
+
+    // Reset items tab state for new hero
+    this.itemsPeriod = 'latest';
+    this.itemsRank = { mode: 'all', tier: 0 };
+    this.itemsTiers = new Set([1, 2, 3, 4]);
+    this.itemsCurrentStats = [];
+    this.itemsRefStats = [];
+    this.heroMatchesCur = 0;
+    this.heroMatchesRef = 0;
+    this.itemsLoading = false;
+    this.itemsLoaded = false;
+    this.itemsError = false;
+    this.itemsSortCol = 'usage';
+    this.itemsSortDir = 'desc';
 
     this.renderSkeleton();
     this.fetchAll();
@@ -308,6 +350,8 @@ export class HeroDetailsPage {
     switch (this.currentTab) {
       case 'builds':     return this.renderBuildsTab();
       case 'skill-path': return this.renderSkillPathTab();
+      case 'lore':       return this.renderLoreTab();
+      case 'items':      return this.renderItemsTab();
       default:           return this.renderPlaceholder(TABS.find(t => t.id === this.currentTab)?.label ?? '');
     }
   }
@@ -511,8 +555,6 @@ export class HeroDetailsPage {
   private renderBuildFullGrid(build: BuildData): string {
     const cats = (build.hero_build.details.mod_categories ?? []).filter(c => (c.mods ?? []).length > 0);
     if (cats.length === 0) return '';
-
-    const TIER_LABEL: Record<number, string> = { 1: 'I', 2: 'II', 3: 'III', 4: 'IV' };
 
     return `
       <div>
@@ -778,6 +820,504 @@ export class HeroDetailsPage {
       </div>`;
   }
 
+  // ── LORE TAB ────────────────────────────────────────────────────────────────
+
+  private renderLoreTab(): string {
+    if (!this.hero) return '';
+    const name      = this.hero.name ?? 'Unknown Hero';
+    const lore      = (this.hero.description as any)?.lore as string | null | undefined;
+    const role      = (this.hero.description as any)?.role as string | null | undefined;
+    const playstyle = (this.hero.description as any)?.playstyle as string | null | undefined;
+    const bgUrl     = this.hero.images?.background_image_webp ?? this.hero.images?.background_image ?? '';
+
+    // All content lives inside the background container — gradient fades from transparent at top
+    // to near-opaque at bottom so text is readable while the splash art is still visible above.
+    return `
+      <div class="relative w-full overflow-hidden" style="min-height:520px;">
+        <div class="absolute inset-0"
+             style="background-image:url('${bgUrl}');background-size:cover;background-position:center top;"></div>
+        <div class="absolute inset-0"
+             style="background:linear-gradient(to bottom,rgba(0,0,0,0.05) 0%,rgba(0,0,0,0.35) 40%,rgba(18,18,18,0.93) 65%,rgba(18,18,18,1) 100%);"></div>
+        <div class="relative z-10 flex flex-col justify-end px-10 pt-64 pb-10 space-y-4" style="min-height:520px;">
+          <h1 class="text-5xl font-extrabold text-white tracking-wide leading-none">${name}</h1>
+          ${role ? `<span class="inline-block self-start text-[10px] font-semibold uppercase tracking-widest text-dry-sage-400 bg-dry-sage-100 px-2 py-0.5 rounded border border-dry-sage-400/30">${role}</span>` : ''}
+          ${lore ? `
+            <div class="max-w-3xl space-y-1">
+              <p class="text-[9px] uppercase tracking-widest text-grey-500 font-medium">Lore</p>
+              <p class="text-grey-300 text-sm leading-relaxed whitespace-pre-line">${lore}</p>
+            </div>` : `
+            <p class="text-grey-500 text-sm">No lore available for this hero.</p>`}
+          ${playstyle ? `
+            <div class="max-w-3xl border-t border-white/10 pt-4 space-y-1">
+              <p class="text-[9px] uppercase tracking-widest text-grey-500 font-medium">Playstyle</p>
+              <p class="text-grey-300 text-sm leading-relaxed">${playstyle}</p>
+            </div>` : ''}
+        </div>
+      </div>`;
+  }
+
+  // ── ITEMS TAB ───────────────────────────────────────────────────────────────
+
+  /**
+   * Fetches item stats for the selected hero, period, and rank filter.
+   * Makes 4 parallel requests (current + reference period × item-stats + hero-stats).
+   * For 'latest' period, fetches /v1/patches/big-days first to determine patch timestamps.
+   *
+   * GET /v1/analytics/item-stats?hero_ids={id}&min_unix_timestamp=...&max_unix_timestamp=...
+   *   → ApiItemStat[] — wins/losses/matches per item for the period
+   * GET /v1/analytics/hero-stats?min_unix_timestamp=...&max_unix_timestamp=...
+   *   → AnalyticsHeroStat[] — total hero matches (usage-rate denominator), filtered client-side
+   * GET /v1/patches/big-days
+   *   → string[] — ISO date strings of major patch days (cached after first fetch)
+   */
+  private async fetchItemsData(): Promise<void> {
+    if (!this.hero || this.itemsLoading) return;
+    this.itemsLoading = true;
+    this.itemsError = false;
+    this.refreshTabContent();
+
+    try {
+      // Always cache patchDays — used for dropdown options AND 'latest' timestamp resolution
+      if (this.patchDays.length === 0) {
+        const pd = await fetch(`${API}/v1/patches/big-days`)
+          .then((r): Promise<unknown> => (r.ok ? r.json() : Promise.resolve([])))
+          .catch((): unknown[] => []);
+        this.patchDays = Array.isArray(pd) ? (pd as string[]).sort() : [];
+      }
+
+      // Resolve 'latest' sentinel to the actual most-recent patch date string
+      if (this.itemsPeriod === 'latest' && this.patchDays.length > 0) {
+        this.itemsPeriod = this.patchDays[this.patchDays.length - 1];
+      }
+
+      const { curStart, curEnd, refStart, refEnd } = this.getPeriodTimestamps();
+
+      const toArr = (r: Response): Promise<unknown[]> => r.ok ? r.json() : Promise.resolve([]);
+      const [curItems, refItems, heroStatsCur, heroStatsRef] = await Promise.all([
+        fetch(this.buildItemStatsUrl(curStart, curEnd)).then(toArr),
+        fetch(this.buildItemStatsUrl(refStart, refEnd)).then(toArr),
+        fetch(this.buildHeroStatsUrl(curStart, curEnd)).then(toArr),
+        fetch(this.buildHeroStatsUrl(refStart, refEnd)).then(toArr),
+      ]);
+
+      this.itemsCurrentStats = Array.isArray(curItems) ? (curItems as ApiItemStat[]) : [];
+      this.itemsRefStats     = Array.isArray(refItems) ? (refItems as ApiItemStat[]) : [];
+
+      const heroId = this.hero.id;
+      this.heroMatchesCur = (Array.isArray(heroStatsCur) ? (heroStatsCur as AnalyticsHeroStat[]) : [])
+        .find(s => s.hero_id === heroId)?.matches ?? 0;
+      this.heroMatchesRef = (Array.isArray(heroStatsRef) ? (heroStatsRef as AnalyticsHeroStat[]) : [])
+        .find(s => s.hero_id === heroId)?.matches ?? 0;
+
+      this.itemsLoaded = true;
+    } catch {
+      this.itemsError = true;
+    } finally {
+      this.itemsLoading = false;
+      this.refreshTabContent();
+    }
+  }
+
+  private buildItemStatsUrl(minTs: number, maxTs: number): string {
+    const p = new URLSearchParams();
+    p.set('hero_ids', String(this.hero!.id));
+    if (minTs > 0) p.set('min_unix_timestamp', String(minTs));
+    if (maxTs > 0) p.set('max_unix_timestamp', String(maxTs));
+    this.appendBadgeParams(p);
+    return `${API}/v1/analytics/item-stats?${p}`;
+  }
+
+  private buildHeroStatsUrl(minTs: number, maxTs: number): string {
+    const p = new URLSearchParams();
+    if (minTs > 0) p.set('min_unix_timestamp', String(minTs));
+    if (maxTs > 0) p.set('max_unix_timestamp', String(maxTs));
+    this.appendBadgeParams(p);
+    return `${API}/v1/analytics/hero-stats?${p}`;
+  }
+
+  private appendBadgeParams(p: URLSearchParams): void {
+    if (this.itemsRank.mode === 'all') return;
+    const rank = RANKS.find(r => r.tier === this.itemsRank.tier);
+    if (!rank) return;
+    p.set('min_average_badge', String(rank.badgeMin));
+    if (this.itemsRank.mode === 'exact') p.set('max_average_badge', String(rank.badgeMax));
+  }
+
+  private getPeriodTimestamps(): { curStart: number; curEnd: number; refStart: number; refEnd: number } {
+    const now = Math.floor(Date.now() / 1000);
+    const day = 86400;
+
+    // Relative periods
+    const RELATIVE: Record<string, number> = { '7d': 7, '14d': 14, '30d': 30, '90d': 90 };
+    if (RELATIVE[this.itemsPeriod] !== undefined) {
+      const d = RELATIVE[this.itemsPeriod] * day;
+      return { curStart: now - d, curEnd: now, refStart: now - 2 * d, refEnd: now - d };
+    }
+
+    // Specific patch date (ISO string) or 'latest' fallback
+    const targetDate = this.itemsPeriod === 'latest'
+      ? (this.patchDays[this.patchDays.length - 1] ?? null)
+      : this.itemsPeriod;
+
+    if (!targetDate) {
+      return { curStart: now - 30 * day, curEnd: 0, refStart: now - 60 * day, refEnd: now - 30 * day };
+    }
+
+    const dateIdx  = this.patchDays.indexOf(targetDate);
+    const curStart = Math.floor(new Date(targetDate).getTime() / 1000);
+    // Upper bound = next patch date (or none for the latest patch)
+    const curEnd   = dateIdx >= 0 && dateIdx < this.patchDays.length - 1
+      ? Math.floor(new Date(this.patchDays[dateIdx + 1]).getTime() / 1000)
+      : 0;
+    // Reference period = previous patch window
+    const refDate  = dateIdx > 0 ? this.patchDays[dateIdx - 1] : null;
+    const refStart = refDate
+      ? Math.floor(new Date(refDate).getTime() / 1000)
+      : curStart - 14 * day;
+
+    return { curStart, curEnd, refStart, refEnd: curStart };
+  }
+
+  private computeItemRows(): ItemStatRow[] {
+    const curMap = new Map<number, ApiItemStat>(this.itemsCurrentStats.map(s => [s.item_id, s]));
+    const refMap = new Map<number, ApiItemStat>(this.itemsRefStats.map(s => [s.item_id, s]));
+    const rows: ItemStatRow[] = [];
+
+    for (const [itemId, cur] of curMap) {
+      const item = this.items.get(itemId);
+      if (!item?.item_slot_type) continue;
+
+      const tier = item.item_tier ?? 0;
+      if (tier > 0 && !this.itemsTiers.has(tier)) continue;
+
+      const ref          = refMap.get(itemId);
+      const winRate      = cur.matches > 0 ? (cur.wins / cur.matches) * 100 : 0;
+      const refWinRate   = ref && ref.matches > 0 ? (ref.wins / ref.matches) * 100 : 0;
+      const usagePct     = this.heroMatchesCur > 0 ? (cur.matches / this.heroMatchesCur) * 100 : 0;
+      const refUsagePct  = ref && this.heroMatchesRef > 0 ? (ref.matches / this.heroMatchesRef) * 100 : 0;
+
+      rows.push({
+        itemId,
+        wins: cur.wins,
+        losses: cur.losses,
+        matches: cur.matches,
+        winRate,
+        winRateChange: ref ? winRate - refWinRate : 0,
+        usagePct,
+        usageChange: ref ? usagePct - refUsagePct : 0,
+      });
+    }
+
+    rows.sort((a, b) => {
+      let diff = 0;
+      switch (this.itemsSortCol) {
+        case 'name':
+          diff = (this.items.get(a.itemId)?.name ?? '').localeCompare(this.items.get(b.itemId)?.name ?? '');
+          break;
+        case 'cost':
+          diff = (this.items.get(a.itemId)?.cost ?? 0) - (this.items.get(b.itemId)?.cost ?? 0);
+          break;
+        case 'winRate':       diff = a.winRate - b.winRate; break;
+        case 'winRateChange': diff = a.winRateChange - b.winRateChange; break;
+        case 'usage':         diff = a.usagePct - b.usagePct; break;
+        case 'usageChange':   diff = a.usageChange - b.usageChange; break;
+        case 'winloss':       diff = a.wins - b.wins; break;
+      }
+      return this.itemsSortDir === 'desc' ? -diff : diff;
+    });
+    return rows;
+  }
+
+  private renderItemsTab(): string {
+    if (!this.hero) return '';
+    const name = this.hero.name ?? 'Hero';
+
+    if (this.itemsError) {
+      return `
+        <div class="flex flex-col items-center justify-center gap-3 py-24 text-grey-500">
+          <div class="w-10 h-10 rounded-full border border-charcoal-400 flex items-center justify-center text-grey-500 text-lg">!</div>
+          <p class="text-sm">Failed to load item statistics.</p>
+          <button id="items-retry-btn"
+            class="px-4 py-2 bg-charcoal-300 hover:bg-charcoal-200 text-grey-300 text-sm rounded-lg border border-charcoal-400 transition-colors">
+            Retry
+          </button>
+        </div>`;
+    }
+
+    return `
+      <div class="p-8 space-y-5 max-w-6xl">
+        <!-- Title + description -->
+        <div>
+          <h2 class="text-2xl font-bold text-white tracking-wide">${name} — Items</h2>
+          <p class="text-dry-sage-500 text-sm mt-1">
+            Analyze the meta trends for all items used on ${name}, filtering by rank,
+            item type, item cost, and date range to uncover which items are most popular
+            and how well they perform.
+          </p>
+          <div class="mt-4 h-px bg-gradient-to-r from-dry-sage-400/50 via-charcoal-400 to-transparent"></div>
+        </div>
+
+        <!-- Filter bar -->
+        ${this.renderItemsFilters()}
+
+        <!-- Table or skeleton -->
+        ${this.itemsLoading ? this.renderItemsTableSkeleton() : this.renderItemsTable(this.computeItemRows())}
+      </div>`;
+  }
+
+  private isFiltered(): boolean {
+    // Period is "changed" when it's not pointing at the latest patch
+    const latestPatch = this.patchDays.length > 0 ? this.patchDays[this.patchDays.length - 1] : '';
+    const periodChanged = this.itemsPeriod !== latestPatch && this.itemsPeriod !== 'latest';
+    const rankChanged   = this.itemsRank.mode !== 'all';
+    const tierChanged   = this.itemsTiers.size !== 4 || ![1, 2, 3, 4].every(t => this.itemsTiers.has(t));
+    return periodChanged || rankChanged || tierChanged;
+  }
+
+  private renderItemsFilters(): string {
+    const rankOpts = RANKS.map(r => `
+      <option value="${r.tier}"
+        ${this.itemsRank.mode === 'exact' && this.itemsRank.tier === r.tier ? 'selected' : ''}>
+        ${r.name}
+      </option>
+      <option value="${r.tier}+"
+        ${this.itemsRank.mode === 'plus' && this.itemsRank.tier === r.tier ? 'selected' : ''}>
+        ${r.name} +
+      </option>`).join('');
+
+    // Last 7 patches (newest first) — populated once patchDays are fetched
+    const recentPatches = this.patchDays.slice(-7).reverse();
+    const patchOpts = recentPatches.length > 0
+      ? `<optgroup label="Patches">
+          ${recentPatches.map((date, i) => `
+            <option value="${date}" ${this.itemsPeriod === date ? 'selected' : ''}>
+              ${date}${i === 0 ? ' — Latest Patch' : ''}
+            </option>`).join('')}
+         </optgroup>`
+      : `<option value="latest" selected>Latest Patch</option>`;
+
+    return `
+      <div class="flex items-center gap-3 flex-wrap">
+        <!-- Period / Patch selector — shows up to 7 past patches + relative options -->
+        <select id="items-period-select"
+          class="bg-charcoal-200 border border-charcoal-400 text-grey-300 text-sm rounded-lg px-3 py-2
+                 cursor-pointer hover:border-charcoal-300 focus:outline-none focus:border-dry-sage-400 transition-colors">
+          ${patchOpts}
+          <optgroup label="Relative Period">
+            <option value="7d"  ${this.itemsPeriod === '7d'  ? 'selected' : ''}>Last 7 Days</option>
+            <option value="14d" ${this.itemsPeriod === '14d' ? 'selected' : ''}>Last 14 Days</option>
+            <option value="30d" ${this.itemsPeriod === '30d' ? 'selected' : ''}>Last Month</option>
+            <option value="90d" ${this.itemsPeriod === '90d' ? 'selected' : ''}>3 Last Months</option>
+          </optgroup>
+        </select>
+
+        <!-- Rank selector -->
+        <select id="items-rank-select"
+          class="bg-charcoal-200 border border-charcoal-400 text-grey-300 text-sm rounded-lg px-3 py-2
+                 cursor-pointer hover:border-charcoal-300 focus:outline-none focus:border-dry-sage-400 transition-colors">
+          <option value="all" ${this.itemsRank.mode === 'all' ? 'selected' : ''}>All Ranks</option>
+          ${rankOpts}
+        </select>
+
+        <!-- Tier toggle buttons (multi-select, client-side filter) -->
+        <div class="flex items-center gap-1">
+          ${[1, 2, 3, 4].map(t => `
+            <button data-tier="${t}"
+              class="items-tier-btn px-3 py-1.5 text-sm font-semibold rounded border transition-colors
+                ${this.itemsTiers.has(t)
+                  ? 'bg-dry-sage-400/20 border-dry-sage-400 text-dry-sage-400'
+                  : 'bg-charcoal-200 border-charcoal-400 text-grey-500 hover:border-charcoal-300 hover:text-grey-300'}">
+              T${t}
+            </button>`).join('')}
+        </div>
+
+        <!-- Refresh button — enabled only when a non-default filter is active -->
+        ${(() => {
+          const active = this.isFiltered();
+          return `<button id="items-refresh-btn" ${active ? '' : 'disabled'}
+            class="ml-auto flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold rounded border transition-colors
+              ${active
+                ? 'bg-dry-sage-400/20 border-dry-sage-400 text-dry-sage-400 hover:bg-dry-sage-400/30 cursor-pointer'
+                : 'bg-charcoal-200 border-charcoal-400 text-grey-600 cursor-not-allowed opacity-50'}">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round"
+                d="M4 4v5h5M20 20v-5h-5M4.93 14A8 8 0 1020 12" />
+            </svg>
+            Refresh
+          </button>`;
+        })()}
+      </div>`;
+  }
+
+  private renderItemsTableSkeleton(): string {
+    return `
+      <div class="overflow-x-auto rounded-xl border border-charcoal-400 animate-pulse">
+        <div class="bg-charcoal-300 h-10 w-full border-b border-charcoal-400 rounded-t-xl"></div>
+        ${Array.from({ length: 8 }).map((_, i) => `
+          <div class="flex items-center gap-4 px-4 py-3 border-b border-charcoal-400 ${i % 2 === 0 ? 'bg-charcoal-100' : 'bg-charcoal-200/40'}">
+            <div class="w-9 h-9 rounded bg-charcoal-300 shrink-0"></div>
+            <div class="h-3 w-32 rounded bg-charcoal-300"></div>
+            <div class="ml-auto flex items-center gap-6">
+              ${Array.from({ length: 5 }).map(() => `<div class="h-3 w-14 rounded bg-charcoal-300"></div>`).join('')}
+            </div>
+          </div>`).join('')}
+      </div>`;
+  }
+
+  private renderItemsTable(rows: ItemStatRow[]): string {
+    if (rows.length === 0) {
+      return `
+        <div class="flex flex-col items-center justify-center gap-3 py-16 text-grey-500">
+          <p class="text-sm">No item data available for the selected filters.</p>
+        </div>`;
+    }
+
+    return `
+      <div class="overflow-x-auto rounded-xl border border-charcoal-400">
+        <table class="w-full text-sm border-collapse">
+          <thead>
+            <tr class="bg-charcoal-300 border-b border-charcoal-400">
+              ${this.sortTh('Item',         'name',          'left')}
+              ${this.sortTh('Cost',         'cost',          'right')}
+              ${this.sortTh('Win Rate',     'winRate',       'left')}
+              ${this.sortTh('WR Change',    'winRateChange', 'right')}
+              ${this.sortTh('Usage',        'usage',         'left')}
+              ${this.sortTh('Usage Change', 'usageChange',   'right')}
+              ${this.sortTh('Win / Loss',   'winloss',       'right')}
+            </tr>
+          </thead>
+          <tbody>
+            ${rows.map((row, i) => this.renderItemRow(row, i)).join('')}
+          </tbody>
+        </table>
+      </div>`;
+  }
+
+  private renderItemRow(row: ItemStatRow, idx: number): string {
+    const item      = this.items.get(row.itemId);
+    const imgUrl    = item ? itemImg(item) : '';
+    const name      = item?.name ?? `#${row.itemId}`;
+    const cost      = item?.cost ?? null;
+    const tier      = item?.item_tier ?? null;
+    const tierLabel = tier && TIER_LABEL[tier] ? TIER_LABEL[tier] : null;
+    const slotCol   = item?.item_slot_type === 'weapon'   ? '#f97316'
+                    : item?.item_slot_type === 'spirit'   ? '#a855f7'
+                    : item?.item_slot_type === 'vitality' ? '#22c55e'
+                    : '#4b5563';
+
+    return `
+      <tr class="border-b border-charcoal-400 ${idx % 2 === 0 ? 'bg-charcoal-100' : 'bg-charcoal-200/40'} hover:bg-charcoal-300/50 transition-colors">
+
+        <!-- Item: icon + tier badge + name -->
+        <td class="px-4 py-3">
+          <div class="flex items-center gap-3">
+            <div class="relative shrink-0" style="width:36px;height:36px;">
+              <div class="w-full h-full rounded border bg-charcoal-300 overflow-hidden"
+                   style="border-color:${slotCol}55;">
+                ${imgUrl ? `<img src="${imgUrl}" alt="${name}" class="w-full h-full object-cover"/>` : ''}
+                <div class="absolute bottom-0 left-0 right-0 h-0.5" style="background:${slotCol};"></div>
+                ${tierLabel ? `
+                  <span class="absolute top-0 right-0 text-[7px] font-bold px-0.5 leading-tight rounded-bl"
+                        style="background:${slotCol};color:#fff;">${tierLabel}</span>` : ''}
+              </div>
+            </div>
+            <span class="text-grey-900 text-sm font-medium">${name}</span>
+          </div>
+        </td>
+
+        <!-- Cost: souls icon + value -->
+        <td class="px-4 py-3 text-right">
+          ${cost !== null ? `
+            <span class="inline-flex items-center gap-1.5 justify-end">
+              <span class="w-2.5 h-2.5 rounded-full shrink-0" style="background:#3b82f6;box-shadow:0 0 4px #3b82f655;"></span>
+              <span class="text-blue-400 font-semibold text-xs">${cost.toLocaleString()}</span>
+            </span>` : `<span class="text-grey-600 text-xs">—</span>`}
+        </td>
+
+        <!-- Win Rate: percentage + progress bar -->
+        <td class="px-4 py-3">
+          <div class="flex flex-col gap-1" style="min-width:100px;">
+            <span class="text-white text-sm font-semibold">${row.winRate.toFixed(2)}%</span>
+            <div class="h-1 rounded-full bg-charcoal-400" style="width:100px;">
+              <div class="h-full rounded-full bg-green-500 transition-all"
+                   style="width:${Math.min(row.winRate, 100).toFixed(1)}%;"></div>
+            </div>
+          </div>
+        </td>
+
+        <!-- Win Rate Change -->
+        <td class="px-4 py-3 text-right">
+          <span class="${this.changeClass(row.winRateChange)} text-sm">${this.formatChange(row.winRateChange)}</span>
+        </td>
+
+        <!-- Usage: percentage + progress bar -->
+        <td class="px-4 py-3">
+          <div class="flex flex-col gap-1" style="min-width:100px;">
+            <span class="text-white text-sm font-semibold">${row.usagePct.toFixed(2)}%</span>
+            <div class="h-1 rounded-full bg-charcoal-400" style="width:100px;">
+              <div class="h-full rounded-full bg-green-500 transition-all"
+                   style="width:${Math.min(row.usagePct, 100).toFixed(1)}%;"></div>
+            </div>
+          </div>
+        </td>
+
+        <!-- Usage Change -->
+        <td class="px-4 py-3 text-right">
+          <span class="${this.changeClass(row.usageChange)} text-sm">${this.formatChange(row.usageChange)}</span>
+        </td>
+
+        <!-- Win / Loss volume -->
+        <td class="px-4 py-3 text-right">
+          <span class="text-grey-400 text-xs font-medium whitespace-nowrap">
+            ${this.formatK(row.wins)} / ${this.formatK(row.losses)}
+          </span>
+        </td>
+      </tr>`;
+  }
+
+  // ── Items tab helpers ────────────────────────────────────────────────────────
+
+  private sortTh(label: string, col: ItemsSortCol, align: 'left' | 'right'): string {
+    const active = this.itemsSortCol === col;
+    const arrow  = active ? (this.itemsSortDir === 'desc' ? '↓' : '↑') : '↕';
+    const base   = `items-sort-btn flex items-center gap-1 text-[10px] uppercase tracking-widest font-medium transition-colors whitespace-nowrap`;
+    const color  = active ? 'text-dry-sage-400' : 'text-grey-500 hover:text-grey-300';
+    const arrowCls = active ? 'text-dry-sage-400' : 'text-grey-700';
+    return `
+      <th class="px-4 py-3 ${align === 'right' ? 'text-right' : 'text-left'}">
+        <button data-sort="${col}" class="${base} ${color} ${align === 'right' ? 'ml-auto' : ''}">
+          ${label}
+          <span class="${arrowCls} text-[11px]">${arrow}</span>
+        </button>
+      </th>`;
+  }
+
+  private changeClass(val: number): string {
+    if (val >= 5)   return 'text-emerald-500 font-semibold';
+    if (val > 0)    return 'text-green-400';
+    if (val === 0)  return 'text-grey-500';
+    if (val > -5)   return 'text-orange-400';
+    return 'text-red-600 font-bold';
+  }
+
+  private formatChange(val: number): string {
+    if (val === 0) return '—';
+    return `${val > 0 ? '+' : ''}${val.toFixed(2)}%`;
+  }
+
+  private formatK(n: number): string {
+    return n >= 1000 ? `${(n / 1000).toFixed(1)}K` : String(n);
+  }
+
+  private refreshTabContent(): void {
+    const el = this.container?.querySelector<HTMLElement>('#hero-tab-content');
+    if (el) {
+      el.innerHTML = this.renderTabContent();
+      this.bindBuildEvents();
+      this.bindItemsEvents();
+    }
+  }
+
   // ── Event binding ───────────────────────────────────────────────────────────
 
   private bindEvents(): void {
@@ -787,10 +1327,14 @@ export class HeroDetailsPage {
         if (tab && tab !== this.currentTab) {
           this.currentTab = tab;
           this.render();
+          if (tab === 'items' && !this.itemsLoaded && !this.itemsLoading) {
+            this.fetchItemsData();
+          }
         }
       });
     });
     this.bindBuildEvents();
+    this.bindItemsEvents();
   }
 
   private bindBuildEvents(): void {
@@ -808,5 +1352,78 @@ export class HeroDetailsPage {
         }
       });
     });
+  }
+
+  private bindItemsEvents(): void {
+    if (this.currentTab !== 'items') return;
+
+    const periodSel = this.container?.querySelector<HTMLSelectElement>('#items-period-select');
+    periodSel?.addEventListener('change', () => {
+      this.itemsPeriod = periodSel.value as ItemsPeriod;
+      this.itemsLoaded = false;
+      this.itemsCurrentStats = [];
+      this.itemsRefStats = [];
+      this.fetchItemsData();
+    });
+
+    const rankSel = this.container?.querySelector<HTMLSelectElement>('#items-rank-select');
+    rankSel?.addEventListener('change', () => {
+      const val = rankSel.value;
+      if (val === 'all') {
+        this.itemsRank = { mode: 'all', tier: 0 };
+      } else if (val.endsWith('+')) {
+        this.itemsRank = { mode: 'plus', tier: parseInt(val) };
+      } else {
+        this.itemsRank = { mode: 'exact', tier: parseInt(val) };
+      }
+      this.itemsLoaded = false;
+      this.itemsCurrentStats = [];
+      this.itemsRefStats = [];
+      this.fetchItemsData();
+    });
+
+    // Column sort — client-side, no re-fetch
+    this.container?.querySelectorAll<HTMLButtonElement>('.items-sort-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const col = btn.dataset.sort as ItemsSortCol;
+        if (this.itemsSortCol === col) {
+          this.itemsSortDir = this.itemsSortDir === 'desc' ? 'asc' : 'desc';
+        } else {
+          this.itemsSortCol = col;
+          this.itemsSortDir = 'desc';
+        }
+        this.refreshTabContent();
+      });
+    });
+
+    // Tier toggles are client-side — no re-fetch, just re-render the table
+    this.container?.querySelectorAll<HTMLButtonElement>('.items-tier-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const tier = parseInt(btn.dataset.tier ?? '');
+        if (isNaN(tier)) return;
+        if (this.itemsTiers.has(tier)) {
+          this.itemsTiers.delete(tier);
+        } else {
+          this.itemsTiers.add(tier);
+        }
+        this.refreshTabContent();
+      });
+    });
+
+    this.container?.querySelector<HTMLButtonElement>('#items-retry-btn')
+      ?.addEventListener('click', () => {
+        this.itemsError = false;
+        this.fetchItemsData();
+      });
+
+    // Refresh button — re-fetch with current filters; only enabled when isFiltered()
+    this.container?.querySelector<HTMLButtonElement>('#items-refresh-btn')
+      ?.addEventListener('click', () => {
+        if (!this.isFiltered()) return;
+        this.itemsLoaded = false;
+        this.itemsCurrentStats = [];
+        this.itemsRefStats = [];
+        this.fetchItemsData();
+      });
   }
 }

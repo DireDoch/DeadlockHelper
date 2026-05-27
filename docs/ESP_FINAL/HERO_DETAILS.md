@@ -217,9 +217,68 @@ Dans le contexte des `ability_order.currency_changes[].ability_id`, c'est effect
 
 ---
 
-## 4. Décisions techniques
+## 4. Onglet Lore
 
-### 4.1 Cache module-level pour les items
+### 4.1 Structure du rendu
+
+Le contenu de l'onglet Lore est entièrement rendu dans un seul conteneur `relative` : le texte est superposé directement sur l'image de fond plutôt que dans une section séparée en dessous.
+
+```
+<div class="relative" style="min-height:520px;">
+  <div class="absolute inset-0" style="background-image:url(…);…" />   ← splash art
+  <div class="absolute inset-0" style="background:linear-gradient(…)" /> ← overlay
+  <div class="relative z-10 flex flex-col justify-end px-10 pt-64 pb-10">
+    <h1>Nom du héros</h1>
+    <span>Rôle</span>
+    <p>Lore</p>
+    <p>Playstyle</p>
+  </div>
+</div>
+```
+
+**Gradient overlay :** `transparent (0%) → semi-sombre (40%) → quasi-opaque (65%) → opaque (100%)`. Le splash art reste visible dans la moitié supérieure ; la zone de texte en bas bénéficie d'un fond suffisamment sombre pour garantir la lisibilité.
+
+**`pt-64` :** Pousse le contenu vers le bas du conteneur, dans la zone opaque du gradient.
+
+**Source des données :** Aucun fetch supplémentaire — le lore est déjà dans l'objet `HeroData` transmis depuis `HeroLibrary` (champ `description.lore`, `description.role`, `description.playstyle`).
+
+---
+
+## 5. Onglet Items — Barre de filtres & Refresh
+
+### 5.1 Bouton Refresh
+
+Un bouton **Refresh** est affiché à droite de la barre de filtres. Il est **désactivé** (`disabled` + `opacity-50` + `cursor-not-allowed`) tant qu'aucun filtre non-par-défaut n'est actif.
+
+**État activé :** style `dry-sage-400`, cliquable. Déclenche un re-fetch complet (`itemsCurrentStats` et `itemsRefStats` remis à zéro + appel `fetchItemsData()`).
+
+**État désactivé :** rendu visuel grisé, attribut HTML `disabled`, le handler de clic vérifie `isFiltered()` avant d'agir.
+
+### 5.2 Logique `isFiltered()`
+
+```typescript
+private isFiltered(): boolean {
+  const latestPatch = this.patchDays.length > 0 ? this.patchDays[this.patchDays.length - 1] : '';
+  const periodChanged = this.itemsPeriod !== latestPatch && this.itemsPeriod !== 'latest';
+  const rankChanged   = this.itemsRank.mode !== 'all';
+  const tierChanged   = this.itemsTiers.size !== 4 || ![1, 2, 3, 4].every(t => this.itemsTiers.has(t));
+  return periodChanged || rankChanged || tierChanged;
+}
+```
+
+| Filtre | Valeur par défaut | Condition "changé" |
+|--------|------------------|--------------------|
+| Période | Dernier patch (`patchDays[last]`) | `itemsPeriod` ≠ dernier patch ET ≠ `'latest'` |
+| Rang | `all` | `itemsRank.mode !== 'all'` |
+| Tier | Tous (1, 2, 3, 4) | Pas exactement les 4 tiers sélectionnés |
+
+Le bouton Refresh n'est PAS un remplacement du re-fetch automatique déclenché par `change` sur les selects période/rang. C'est un mécanisme explicite permettant à l'utilisateur de forcer un nouveau fetch après avoir ajusté plusieurs filtres.
+
+---
+
+## 6. Décisions techniques
+
+### 6.1 Cache module-level pour les items
 
 `/v1/assets/items` retourne ~300 items et fait environ 200–400 KB. Ce catalogue ne change pas entre les navigations dans une même session. Le cache est maintenu dans deux variables module-level :
 
@@ -230,11 +289,11 @@ let _itemsFetch: Promise<Map<number, ItemData>> | null = null;
 
 Le pattern avec `_itemsFetch` évite les **double-fetch** : si deux héros sont ouverts rapidement en parallèle, le second attend la même promesse au lieu de lancer un deuxième fetch réseau.
 
-### 4.2 Pourquoi `num_weekly_favorites` pour le « Recommandé »
+### 6.2 Pourquoi `num_weekly_favorites` pour le « Recommandé »
 
 L'endpoint analytics (`hero-build-stats`) ne couvre que les builds effectivement utilisés en match analysé. Des builds très récents ou très populaires peuvent avoir un `hero_build_id` sans correspondance dans les stats. Utiliser `num_weekly_favorites` comme critère de recommandation est plus robuste car ce champ est directement sur l'objet build retourné par `/v1/builds`.
 
-### 4.3 Filtrage des abilities parasites
+### 6.3 Filtrage des abilities parasites
 
 L'endpoint `by-hero-id` retourne systématiquement :
 - Une entry `"Melee"` (le punch universel partagé par tous les héros)

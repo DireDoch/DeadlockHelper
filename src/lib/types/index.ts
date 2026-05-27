@@ -306,3 +306,51 @@ export interface HeroAbilityItem {
   image?: string | null;
   image_webp?: string | null;
 }
+
+// ── Hero Items Tab types ──────────────────────────────────────────────────────
+
+// Period selector for the items tab filter bar
+export type ItemsPeriod = 'latest' | '7d' | '14d' | '30d' | '90d';
+
+// Rank filter: all ranks, a single exact rank, or rank + all above
+export interface ItemsRankFilter {
+  mode: 'all' | 'exact' | 'plus';
+  tier: number; // ignored when mode === 'all'
+}
+
+// From GET /v1/analytics/item-stats?hero_ids={id}&...
+export interface ApiItemStat {
+  item_id: number;
+  wins: number;
+  losses: number;
+  matches: number;
+  players: number;
+  avg_buy_time_s: number;
+  avg_sell_time_s: number;
+  avg_buy_time_relative: number;
+  avg_sell_time_relative: number;
+  bucket: number;
+}
+
+// From GET /v1/analytics/hero-stats — filtered client-side by hero_id
+// Used to get total hero matches as the usage-rate denominator
+export interface AnalyticsHeroStat {
+  hero_id: number;
+  bucket: number;
+  wins: number;
+  losses: number;
+  matches: number;
+  players: number;
+}
+
+// Computed display row for the items table (current period data + change deltas)
+export interface ItemStatRow {
+  itemId: number;
+  wins: number;
+  losses: number;
+  matches: number;
+  winRate: number;       // wins / matches × 100
+  winRateChange: number; // current winRate − reference winRate (percentage points)
+  usagePct: number;      // matches / heroTotalMatches × 100
+  usageChange: number;   // current usagePct − reference usagePct (percentage points)
+}
