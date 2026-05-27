@@ -10,7 +10,6 @@ import { UserProfile } from './componentsUI/UserProfile';
 
 // Main pages
 import { ProfilPage } from './pages/Profil';
-import { HeroPage } from './pages/Hero';
 import { GameOverlayPage } from './pages/EnPartie';
 import { LeaderboardPage } from './pages/Leaderboard';
 import { MetaItemsPage } from './pages/Items';
@@ -38,7 +37,6 @@ export class App {
 
   // Main page instances
   private profilPage = new ProfilPage();
-  private heroPage = new HeroPage();
   private gameOverlayPage = new GameOverlayPage();
   private leaderboardPage = new LeaderboardPage();
   private metaItemsPage = new MetaItemsPage();
@@ -182,7 +180,7 @@ export class App {
           this.profilPage.mount(this.contentContainer);
           break;
         case 'hero-stats':
-          this.heroPage.mount(this.contentContainer);
+          this.heroLibraryPage.mount(this.contentContainer);
           break;
         case 'game-overlay':
           this.gameOverlayPage.mount(this.contentContainer);

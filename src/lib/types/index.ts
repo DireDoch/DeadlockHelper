@@ -63,12 +63,21 @@ export interface SteamProfile {
 export interface HeroData {
   id: number;
   name: string;
+  player_selectable?: boolean;
+  disabled?: boolean;
+  in_development?: boolean;
   images?: {
+    icon_hero_card?: string;
+    icon_hero_card_webp?: string;
     icon_image_small?: string;
     icon_image_small_webp?: string;
+    background_image?: string;
+    background_image_webp?: string;
+    top_bar_vertical_image?: string;
+    top_bar_vertical_image_webp?: string;
     [key: string]: any;
   };
-  [key: string]: any; // Allow additional fields from API
+  [key: string]: any;
 }
 
 // Match and Player types for Live Dashboard

@@ -102,16 +102,7 @@ const NAV_ITEMS: NavConfig[] = [
       { id: 'tactical-analysis', label: 'Tactical Analysis' },
     ],
   },
-  {
-    main: 'hero-stats',
-    label: 'Hero Statistics',
-    icon: BugAntIcon,
-    subPages: [
-      { id: 'hero-library', label: 'Hero Library' },
-      { id: 'hero-details', label: 'Hero Details' },
-      { id: 'meta-builds',  label: 'Meta & Builds' },
-    ],
-  },
+  { main: 'hero-stats', label: 'Heroes', icon: BugAntIcon },
   { main: 'meta-items',        label: 'Items & Builds',    icon: CubeIcon },
   {
     main: 'leaderboards',
