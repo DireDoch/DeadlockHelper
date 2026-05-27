@@ -95,6 +95,17 @@ export class HeroLibraryPage {
           </div>
         </div>
       </div>`;
+
+    // Wire hero card clicks → navigate-hero event
+    this.container.querySelectorAll<HTMLButtonElement>('button[data-hero-id]').forEach(btn => {
+      const id = parseInt(btn.dataset.heroId ?? '', 10);
+      const hero = heroes.find(h => h.id === id);
+      if (hero) {
+        btn.addEventListener('click', () => {
+          document.dispatchEvent(new CustomEvent('navigate-hero', { detail: { heroId: id, heroData: hero } }));
+        });
+      }
+    });
   }
 
   private renderHeroCard(hero: HeroData): string {
@@ -115,9 +126,9 @@ export class HeroLibraryPage {
                     text-grey-600 text-xs bg-charcoal-300">?</div>`;
 
     return `
-      <a href="#hero-${hero.id}"
-         title="${name}"
-         class="group flex flex-col items-center gap-1.5 cursor-pointer">
+      <button data-hero-id="${hero.id}"
+              title="${name}"
+              class="group flex flex-col items-center gap-1.5 cursor-pointer bg-transparent border-0 p-0">
         <div class="w-[96px] h-[128px] rounded-lg overflow-hidden
                     border border-charcoal-400
                     group-hover:border-dry-sage-400
@@ -130,6 +141,6 @@ export class HeroLibraryPage {
                      transition-colors duration-200 group-hover:text-dry-sage-400">
           ${name}
         </span>
-      </a>`;
+      </button>`;
   }
 }

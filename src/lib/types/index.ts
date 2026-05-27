@@ -204,3 +204,104 @@ export interface CachedMatchData {
   data: MatchData;
   cached_at: number;
 }
+
+// ── Hero Detail Page types ────────────────────────────────────────────────────
+
+export interface BuildData {
+  hero_build: {
+    hero_build_id: number;
+    hero_id: number;
+    name: string;
+    description?: string | null;
+    details: {
+      ability_order?: {
+        currency_changes?: Array<{
+          ability_id: number;
+          currency_type: number;
+          delta: number;
+          annotation?: string | null;
+        }>;
+      } | null;
+      mod_categories?: Array<{
+        name: string;
+        description?: string | null;
+        mods?: Array<{ ability_id: number; annotation?: string | null }> | null;
+      }>;
+    };
+  };
+  num_weekly_favorites?: number | null;
+}
+
+export interface BuildStats {
+  hero_build_id: number;
+  hero_id: number;
+  wins: number;
+  losses: number;
+  matches: number;
+  players: number;
+}
+
+// Description object returned by the Deadlock API for items and abilities
+interface ItemDescription {
+  desc?: string | null;
+  active?: string | null;
+  passive?: string | null;
+  [key: string]: string | null | undefined;
+}
+
+// Stat property on an item (value + formatting metadata)
+interface ItemPropertyValue {
+  value?: string | null;
+  label?: string | null;
+  prefix?: string | null;
+  postfix?: string | null;
+  display_units?: string | null;
+  negative_attribute?: boolean | null;
+  tooltip_is_important?: boolean | null;
+  [key: string]: any;
+}
+
+// Tooltip section attribute — lists which property names to show
+interface UpgradeTooltipSectionAttribute {
+  loc_string?: string | null;
+  important_properties?: string[] | null;
+  properties?: string[] | null;
+}
+
+export interface ItemData {
+  id: number;
+  name: string;
+  description?: ItemDescription | string | null;
+  item_slot_type?: 'weapon' | 'spirit' | 'vitality' | null;
+  cost?: number | null;
+  // Primary icon fields (Upgrade/shop items)
+  shop_image_webp?: string | null;
+  shop_image_small_webp?: string | null;
+  shop_image?: string | null;
+  shop_image_small?: string | null;
+  // Ability icon fields
+  image_webp?: string | null;
+  image?: string | null;
+  // Stat properties keyed by property name (e.g. "BonusFireRate")
+  properties?: Record<string, ItemPropertyValue> | null;
+  // Tooltip sections define which stats to surface per section
+  tooltip_sections?: Array<{
+    section_attributes?: UpgradeTooltipSectionAttribute[] | null;
+  }> | null;
+  [key: string]: any;
+}
+
+export interface AbilityOrderStats {
+  abilities: number[];
+  wins: number;
+  losses: number;
+  matches: number;
+  players: number;
+}
+
+export interface HeroAbilityItem {
+  id: number;
+  name: string;
+  image?: string | null;
+  image_webp?: string | null;
+}

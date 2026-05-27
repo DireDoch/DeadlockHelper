@@ -123,6 +123,15 @@ export class App {
     // Get content container
     this.contentContainer = document.getElementById('content');
 
+    // Hero card click → hero detail page
+    document.addEventListener('navigate-hero', (e: Event) => {
+      const { heroData } = (e as CustomEvent).detail;
+      if (this.contentContainer) {
+        this.currentPage = 'hero-details';
+        this.heroDetailsPage.mountWithHero(this.contentContainer, heroData);
+      }
+    });
+
     // Initial page render
     this.renderPage(this.currentPage);
 
