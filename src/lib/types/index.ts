@@ -273,6 +273,7 @@ export interface ItemData {
   name: string;
   description?: ItemDescription | string | null;
   item_slot_type?: 'weapon' | 'spirit' | 'vitality' | null;
+  item_tier?: number | null;
   cost?: number | null;
   // Primary icon fields (Upgrade/shop items)
   shop_image_webp?: string | null;

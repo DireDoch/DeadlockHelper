@@ -24,6 +24,7 @@
  *     → AbilityOrderStats[] — top skill-upgrade sequences; abilities[] = ordered ability IDs
  */
 
+import abilityLearnUrl from '../../../assets/icons/ability-learn.png?url';
 import type {
   HeroData,
   BuildData,
@@ -192,17 +193,12 @@ export class HeroDetailsPage {
         .sort((a, b) => b.matches - a.matches)
         .slice(0, 5);
 
-      // Build the set of ability IDs that actually appear in upgrade sequences.
-      // The hidden ultimate (ability slot 4 → replaced by slot 3 in Deadlock) never
-      // appears in any abilities[] array, so this naturally excludes it from the grid.
-      const upgradedAbilityIds = new Set<number>();
-      this.abilityStats.forEach(s => s.abilities.forEach(id => upgradedAbilityIds.add(id)));
-
-      // Keep only hero abilities that are actually upgradeable, preserving API order
+      // Keep the 4 real signature abilities: exclude the shared melee/punch ('Melee')
+      // and any ability whose name is still a raw class name (contains '_'), e.g. 'ability_hero_slide'.
       const rawAbilities: HeroAbilityItem[] = Array.isArray(abilities) ? abilities : [];
       this.heroAbilities = rawAbilities
-        .slice(0, 4)
-        .filter(a => upgradedAbilityIds.has(a.id));
+        .filter(a => a.name !== 'Melee' && !a.name.includes('_'))
+        .slice(0, 4);
 
       this.render();
     } catch {
@@ -335,13 +331,10 @@ export class HeroDetailsPage {
   }
 
   private recommendedBuildIdx(): number {
-    let best = 0, bestWR = -1;
+    let best = 0, bestFav = -1;
     this.builds.forEach((b, i) => {
-      const s = this.buildStats.find(s => s.hero_build_id === b.hero_build.hero_build_id);
-      if (s && s.matches > 0) {
-        const wr = s.wins / s.matches;
-        if (wr > bestWR) { bestWR = wr; best = i; }
-      }
+      const fav = b.num_weekly_favorites ?? 0;
+      if (fav > bestFav) { bestFav = fav; best = i; }
     });
     return best;
   }
@@ -418,18 +411,20 @@ export class HeroDetailsPage {
     const wr      = s && s.matches > 0 ? (s.wins / s.matches * 100).toFixed(1) : null;
     const matches = s?.matches ?? 0;
 
-    // Damage split percentages
-    let wep = 0, spr = 0;
+    // Damage split percentages (Gun / Spirit / Vitality)
+    let wep = 0, spr = 0, vit = 0;
     (build.hero_build.details.mod_categories ?? []).forEach(cat =>
       (cat.mods ?? []).forEach(mod => {
         const item = this.items.get(mod.ability_id);
         if (item?.item_slot_type === 'weapon') wep++;
         else if (item?.item_slot_type === 'spirit') spr++;
+        else if (item?.item_slot_type === 'vitality') vit++;
       })
     );
-    const total  = wep + spr || 1;
+    const total  = wep + spr + vit || 1;
     const gunPct = Math.round(wep / total * 100);
-    const sprPct = 100 - gunPct;
+    const sprPct = Math.round(spr / total * 100);
+    const vitPct = 100 - gunPct - sprPct;
 
     // Core items category
     const cats     = build.hero_build.details.mod_categories ?? [];
@@ -453,11 +448,13 @@ export class HeroDetailsPage {
               <div class="relative flex-1 h-4 rounded-sm overflow-hidden bg-charcoal-400 flex">
                 <div class="h-full transition-all" style="width:${gunPct}%;background:#f97316;"></div>
                 <div class="h-full transition-all" style="width:${sprPct}%;background:#a855f7;"></div>
+                <div class="h-full transition-all" style="width:${vitPct}%;background:#22c55e;"></div>
               </div>
             </div>
-            <div class="flex items-center justify-between text-[10px]">
-              <span class="text-orange-400 font-semibold">Gun ${gunPct}%</span>
-              <span class="text-purple-400 font-semibold">${sprPct}% Spirit</span>
+            <div class="flex items-center gap-2 text-[10px]">
+              <span class="text-orange-400 font-semibold">G ${gunPct}%</span>
+              <span class="text-purple-400 font-semibold">S ${sprPct}%</span>
+              <span class="text-green-400 font-semibold">V ${vitPct}%</span>
             </div>
           </div>
 
@@ -515,8 +512,7 @@ export class HeroDetailsPage {
     const cats = (build.hero_build.details.mod_categories ?? []).filter(c => (c.mods ?? []).length > 0);
     if (cats.length === 0) return '';
 
-    // Cap at 4 visible columns; extra categories still render but grid wraps
-    const colCount = Math.min(cats.length, 4);
+    const TIER_LABEL: Record<number, string> = { 1: 'I', 2: 'II', 3: 'III', 4: 'IV' };
 
     return `
       <div>
@@ -526,62 +522,65 @@ export class HeroDetailsPage {
           <div class="flex-1 h-px bg-charcoal-400"></div>
         </div>
 
-        <!-- Column grid: each category = 1 column, items stacked vertically -->
-        <div class="grid gap-2" style="grid-template-columns:repeat(${colCount},1fr);">
+        <!-- Row layout: each category = header + horizontal icon row -->
+        <div class="space-y-4">
           ${cats.map(cat => {
             const mods = cat.mods ?? [];
-            // Category slot type — infer from majority of items
             const slotCounts: Record<string, number> = {};
             mods.forEach(m => {
               const sl = this.items.get(m.ability_id)?.item_slot_type ?? 'other';
               slotCounts[sl] = (slotCounts[sl] ?? 0) + 1;
             });
-            const dominantSlot = Object.entries(slotCounts).sort((a,b) => b[1]-a[1])[0]?.[0] ?? 'other';
+            const dominantSlot = Object.entries(slotCounts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? 'other';
             const headerColor  = dominantSlot === 'weapon'   ? '#f97316'
-                               : dominantSlot === 'spirit'    ? '#a855f7'
-                               : dominantSlot === 'vitality'  ? '#22c55e'
+                               : dominantSlot === 'spirit'   ? '#a855f7'
+                               : dominantSlot === 'vitality' ? '#22c55e'
                                : '#4b5563';
 
             return `
-              <div class="bg-charcoal-200 rounded-lg border border-charcoal-400 overflow-hidden">
-                <!-- Category header chip -->
-                <div class="px-3 py-1.5 flex items-center gap-1.5"
-                     style="border-bottom:1px solid ${headerColor}33;background:${headerColor}0d;">
+              <div>
+                <!-- Category label row -->
+                <div class="flex items-center gap-2 mb-2">
                   <div class="w-1.5 h-1.5 rounded-full shrink-0" style="background:${headerColor};"></div>
-                  <p class="text-[10px] font-semibold uppercase tracking-wider truncate"
+                  <p class="text-[10px] font-semibold uppercase tracking-wider"
                      style="color:${headerColor};">${cat.name}</p>
+                  <div class="flex-1 h-px" style="background:${headerColor}33;"></div>
                 </div>
-                <!-- Items stacked vertically -->
-                <div class="p-2 flex flex-col gap-1.5">
+
+                <!-- Horizontal icon row -->
+                <div class="flex flex-wrap gap-2">
                   ${mods.map(mod => {
-                    const item     = this.items.get(mod.ability_id);
-                    const imgUrl   = item ? itemImg(item) : '';
-                    const name     = item?.name ?? `#${mod.ability_id}`;
-                    const desc     = item ? itemDesc(item) : '';
-                    const cost     = item?.cost ?? null;
-                    const stats    = item ? itemStatLines(item) : [];
-                    const slotCol  = item?.item_slot_type === 'weapon'   ? '#f97316'
-                                   : item?.item_slot_type === 'spirit'   ? '#a855f7'
-                                   : item?.item_slot_type === 'vitality' ? '#22c55e'
-                                   : '#4b5563';
+                    const item      = this.items.get(mod.ability_id);
+                    const imgUrl    = item ? itemImg(item) : '';
+                    const name      = item?.name ?? `#${mod.ability_id}`;
+                    const desc      = item ? itemDesc(item) : '';
+                    const cost      = item?.cost ?? null;
+                    const tier      = item?.item_tier ?? null;
+                    const tierLabel = tier && TIER_LABEL[tier] ? TIER_LABEL[tier] : null;
+                    const stats     = item ? itemStatLines(item) : [];
+                    const slotCol   = item?.item_slot_type === 'weapon'   ? '#f97316'
+                                    : item?.item_slot_type === 'spirit'   ? '#a855f7'
+                                    : item?.item_slot_type === 'vitality' ? '#22c55e'
+                                    : '#4b5563';
                     return `
-                      <div class="relative group flex items-center gap-2 rounded px-1.5 py-1
-                                  hover:bg-charcoal-300/60 transition-colors cursor-default">
-                        <!-- Icon 36px -->
-                        <div class="relative w-9 h-9 shrink-0 rounded overflow-hidden border"
-                             style="border-color:${slotCol}44;">
+                      <div class="relative group shrink-0 flex flex-col items-center gap-0.5" style="width:52px;">
+                        <!-- Icon square -->
+                        <div class="relative w-full rounded border bg-charcoal-300 overflow-hidden cursor-default"
+                             style="height:52px;border-color:${slotCol}44;">
                           ${imgUrl
                             ? `<img src="${imgUrl}" alt="${name}" class="w-full h-full object-cover"/>`
-                            : `<div class="w-full h-full flex items-center justify-center text-grey-600 text-[8px]">${name.slice(0,4)}</div>`}
+                            : `<div class="w-full h-full flex items-center justify-center text-grey-600 text-[8px] p-0.5 text-center leading-tight">${name.slice(0, 5)}</div>`}
+                          <!-- Slot colour bottom strip -->
                           <div class="absolute bottom-0 left-0 right-0 h-0.5" style="background:${slotCol};"></div>
+                          <!-- Tier badge top-right -->
+                          ${tierLabel ? `
+                            <span class="absolute top-0 right-0 text-[8px] font-bold px-0.5 leading-tight rounded-bl"
+                                  style="background:${slotCol};color:#fff;">${tierLabel}</span>` : ''}
                         </div>
-                        <!-- Name + cost inline -->
-                        <div class="flex-1 min-w-0">
-                          <p class="text-[11px] text-grey-300 font-medium leading-tight truncate">${name}</p>
-                          ${cost ? `<p class="text-[10px] font-semibold" style="color:#fbbf24;">${cost.toLocaleString()} 🪙</p>` : ''}
-                        </div>
-                        <!-- Tooltip on hover -->
-                        <div class="absolute left-full top-1/2 -translate-y-1/2 ml-2 z-[60]
+                        <!-- Cost always visible below icon -->
+                        ${cost ? `<p class="text-[9px] font-semibold text-yellow-400 leading-none text-center">${cost.toLocaleString()}</p>` : ''}
+                        <!-- Tooltip on hover — above icon -->
+                        <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-[60]
                                     hidden group-hover:block pointer-events-none"
                              style="width:220px;">
                           <div class="bg-charcoal-200 border border-charcoal-400 rounded-lg shadow-2xl overflow-hidden">
@@ -750,7 +749,7 @@ export class HeroDetailsPage {
                     <div class="shrink-0 flex items-center justify-center rounded-sm"
                          style="width:${CELL}px;height:${CELL}px;background:${filled ? color + '22' : 'transparent'};">
                       ${filled
-                        ? `<div class="w-2.5 h-2.5 rounded-full" style="background:${color};"></div>`
+                        ? `<img src="${abilityLearnUrl}" alt="" class="w-3.5 h-3.5 object-contain" />`
                         : ''}
                     </div>`).join('')}
                 </div>`;
@@ -782,7 +781,6 @@ export class HeroDetailsPage {
   // ── Event binding ───────────────────────────────────────────────────────────
 
   private bindEvents(): void {
-    // Tab switching
     this.container?.querySelectorAll<HTMLButtonElement>('.hero-tab-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         const tab = btn.dataset.tab as Tab | undefined;
@@ -792,30 +790,22 @@ export class HeroDetailsPage {
         }
       });
     });
+    this.bindBuildEvents();
+  }
 
-    // Build selector
+  private bindBuildEvents(): void {
     this.container?.querySelectorAll<HTMLButtonElement>('.build-selector-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         const idx = parseInt(btn.dataset.buildIdx ?? '', 10);
         if (isNaN(idx) || idx === this.selectedBuildIdx) return;
         this.selectedBuildIdx = idx;
-
-        // Update selector button styles without full re-render
-        this.container?.querySelectorAll<HTMLButtonElement>('.build-selector-btn').forEach((b, i) => {
-          if (i === idx) {
-            b.classList.replace('bg-charcoal-200', 'bg-charcoal-300');
-            b.classList.replace('border-charcoal-400', 'border-dry-sage-400');
-            b.classList.replace('text-grey-400', 'text-white');
-          } else {
-            b.classList.replace('bg-charcoal-300', 'bg-charcoal-200');
-            b.classList.replace('border-dry-sage-400', 'border-charcoal-400');
-            b.classList.replace('text-white', 'text-grey-400');
-          }
-        });
-
-        // Update build detail area only
-        const area = this.container?.querySelector('#build-detail-area');
-        if (area) area.innerHTML = this.renderBuildDetail(idx);
+        // Re-render the builds tab content — all data is already in memory so this is instant.
+        // This correctly updates the top-accent bar (inline style) and all selected-state classes.
+        const tabContent = this.container?.querySelector('#hero-tab-content');
+        if (tabContent) {
+          tabContent.innerHTML = this.renderBuildsTab();
+          this.bindBuildEvents();
+        }
       });
     });
   }
