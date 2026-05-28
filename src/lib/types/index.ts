@@ -111,7 +111,7 @@ export interface RankDistributionEntry {
   players: number;
 }
 
-// From /v1/assets/ranks
+// From /v1/assets/ranks — RankImages schema includes per-sub-rank icons
 export interface RankAsset {
   tier: number;
   name: string;
@@ -119,9 +119,24 @@ export interface RankAsset {
     small?: string;
     small_webp?: string;
     large?: string;
+    large_webp?: string;
+    // Sub-rank specific icons (subrank 1–6)
+    small_subrank1?: string; small_subrank1_webp?: string;
+    small_subrank2?: string; small_subrank2_webp?: string;
+    small_subrank3?: string; small_subrank3_webp?: string;
+    small_subrank4?: string; small_subrank4_webp?: string;
+    small_subrank5?: string; small_subrank5_webp?: string;
+    small_subrank6?: string; small_subrank6_webp?: string;
     [key: string]: string | undefined;
   };
   color?: string;
+}
+
+// From GET /v1/analytics/badge-distribution
+// badge_level encoding: tier = floor(badge_level / 10), subrank = badge_level % 10
+export interface BadgeDistributionEntry {
+  badge_level: number;
+  total_matches: number;
 }
 
 // From /v1/players/{account_id}/match-history (single entry)

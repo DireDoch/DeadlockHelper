@@ -110,6 +110,24 @@
   --color-cream-900: #fbfdf0;
 }
 
+/*
+ * Rank colors — same names as the rank filter in the Hero → Items tab.
+ * Source: src/lib/constants/ranks.ts (RANKS, tiers 1–11).
+ */
+:root {
+  --rank-color-1:  #774D22; /* Tier  1 — Initiate  */
+  --rank-color-2:  #8E445D; /* Tier  2 — Seeker    */
+  --rank-color-3:  #4A5C8E; /* Tier  3 — Alchemist */
+  --rank-color-4:  #436C2C; /* Tier  4 — Arcanist  */
+  --rank-color-5:  #BC6020; /* Tier  5 — Ritualist */
+  --rank-color-6:  #D04F5F; /* Tier  6 — Emissary  */
+  --rank-color-7:  #A96BBE; /* Tier  7 — Archon    */
+  --rank-color-8:  #A66325; /* Tier  8 — Oracle    */
+  --rank-color-9:  #BFBFBF; /* Tier  9 — Phantom   */
+  --rank-color-10: #EFD970; /* Tier 10 — Ascendant */
+  --rank-color-11: #5AFFC3; /* Tier 11 — Eternus   */
+}
+
 body {
   font-family:
     -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial,
