@@ -10,7 +10,19 @@ The page shown after selecting a hero from the Hero Library. Receives a `HeroDat
 Sticky header displayed on the Hero Detail Page. Contains the hero portrait (`icon_hero_card_webp`), hero name, and a full-bleed background image (`background_image_webp`) from `HeroImages`.
 
 ## Tab
-One of 5 horizontal navigation items below the sticky header: **Builds**, **Items**, **Skill Path**, **Overview & Abilities**, **Lore**. Only Builds and Skill Path are functional; the others are placeholder stubs.
+One of 5 horizontal navigation items below the sticky header: **Builds**, **Items**, **Skill Path**, **Overview & Abilities**, **Lore**. Builds, Skill Path, Items, and Overview & Abilities are functional; Lore is display-only.
+
+## Overview & Abilities Tab
+The tab that shows a hero's combat statistics and all four signature abilities. Left panel: **Weapon Stats** (`clip_size`, `bullet_damage`, `shots_per_second`, `damage_per_second` from `weapon_info` on the hero's primary weapon item, resolved via `hero.items.weapon_primary` class name in the items cache) and **Base Stats** (`max_health`, `max_move_speed`, `light_melee_damage`, `heavy_melee_damage` from `hero.starting_stats`). Right panel: an ability selector row (4 buttons) and a dynamic description panel below it. Requires zero additional API fetches — all data is already in `this.heroAbilities`, `this.items`, and `this.hero`.
+
+## Ability Detail Panel
+The expandable detail area shown when an ability is selected in the Overview & Abilities tab. Displays: ability name, **type badge** (Signature or Ultimate), **quip** (one-line subtitle from `description.quip`), **rich text description** (HTML-stripped then keyword-highlighted via `parseAbilityDesc`), **upgrade tiers** (T1/T2/T3 from `description.t1_desc/t2_desc/t3_desc`), **key dynamic stats** (non-zero labeled `properties` entries, up to 6), and **standard stat chips** (Cooldown, Cast Range, Duration, Charges if applicable).
+
+## Ultimate Ability
+The fourth signature ability of each hero, identified by `ability_type === 'ultimate'` on the full `ItemData`. Rendered with a permanent golden pulsing glow animation (`ability-ultimate-glow` CSS class), a `ULT` badge on the selector button, an amber header gradient on the detail panel, and a glowing border.
+
+## Rich Text Parser
+The `parseAbilityDesc(raw)` method on `HeroDetailsPage`. Strips all HTML tags and entities from an ability description string, then applies a single-pass regex replacement to highlight status effect keywords and damage type keywords with colored `<span>` elements and inline SVG icons. Keywords sourced from `docs/statusEffect.md`. Handles: spirit damage (purple), weapon damage (orange), stun (amber), slow (sky), disarm (red), grounded (lime), silence (violet), immobilize/root (teal), bleed (rose), burn/curse (fuchsia), sleep (indigo), unstoppable (emerald).
 
 ## Popular Builds
 The top 3 community builds for a hero, sorted by `weekly_favorites` from `GET /v1/builds?hero_id={id}&sort_by=weekly_favorites&limit=3`. Each is enriched with win rate from `GET /v1/analytics/hero-build-stats/{hero_id}`. The build with the highest win rate among the three receives the **Recommended** badge.

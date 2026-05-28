@@ -43,15 +43,27 @@ import { RANKS } from '../../../lib/constants/ranks';
 const API = 'https://api.deadlock-api.com';
 
 // ── Module-level items cache (survives hero navigation) ───────────────────────
+// Stored at module scope (not on the class instance) so that navigating between
+// heroes does NOT discard the ~3 MB items payload.  Every HeroDetailsPage instance
+// shares the same resolved Map; only the very first hero triggers a network fetch.
 let _itemsCache: Map<number, ItemData> | null = null;
 let _itemsFetch: Promise<Map<number, ItemData>> | null = null;
 
+/**
+ * GET /v1/assets/items — full catalogue of items, abilities, and upgrades.
+ * Fields used: id, name, class_name, item_slot_type, item_tier, cost,
+ *   shop_image_webp / image_webp (icon), description, properties,
+ *   tooltip_sections, weapon_info, ability_type, upgrades.
+ *
+ * Promise-deduplicated: if two hero navigations fire before the first response
+ * arrives, both await the same in-flight promise instead of issuing two requests.
+ */
 function fetchItemsCache(): Promise<Map<number, ItemData>> {
   if (_itemsCache) return Promise.resolve(_itemsCache);
   if (_itemsFetch) return _itemsFetch;
   // GET /v1/assets/items — full item list including abilities, weapons, upgrades
   _itemsFetch = fetch(`${API}/v1/assets/items`)
-    .then(r => (r.ok ? r.json() : []))
+    .then(r => (r.ok ? r.json() : Promise.resolve([])))
     .then((arr: ItemData[]) => {
       _itemsCache = new Map(arr.map(i => [i.id, i]));
       return _itemsCache;
@@ -158,6 +170,7 @@ export class HeroDetailsPage {
   private itemsError = false;
   private itemsSortCol: ItemsSortCol = 'usage';
   private itemsSortDir: ItemsSortDir = 'desc';
+  private selectedAbilityIdx: number = 0;
 
   // ── Public API ──────────────────────────────────────────────────────────────
 
@@ -185,6 +198,7 @@ export class HeroDetailsPage {
     this.itemsError = false;
     this.itemsSortCol = 'usage';
     this.itemsSortDir = 'desc';
+    this.selectedAbilityIdx = 0;
 
     this.renderSkeleton();
     this.fetchAll();
@@ -199,31 +213,47 @@ export class HeroDetailsPage {
 
   // ── Data fetching ───────────────────────────────────────────────────────────
 
+  /**
+   * Fires all hero-specific data requests in parallel so the page renders as
+   * soon as the slowest response arrives rather than waterfall-fetching.
+   * The items catalogue is shared (module-level cache) so it isn't re-downloaded
+   * on every hero navigation.
+   *
+   * GET /v1/builds?hero_id={id}&sort_by=weekly_favorites&limit=3&only_latest=true&build_language=English
+   *   → top 3 weekly-favourited builds in English; fields: name, mod_categories, ability_order
+   * GET /v1/analytics/hero-build-stats/{id}
+   *   → BuildStats[] — wins/losses/matches per hero_build_id (for win-rate badge)
+   * GET /v1/assets/items (module-level cache)
+   *   → full item catalogue — see fetchItemsCache() JSDoc for used fields
+   * GET /v1/assets/items/by-hero-id/{id}
+   *   → HeroAbilityItem[] — the hero's 4 signature abilities (icon, id, name)
+   * GET /v1/analytics/ability-order-stats?hero_id={id}&min_matches=200
+   *   → AbilityOrderStats[] — skill-upgrade sequences with ≥ 200 matches; abilities[] = ordered IDs
+   */
   private async fetchAll(): Promise<void> {
     if (!this.hero) return;
     const id = this.hero.id;
 
     try {
       const [builds, stats, items, abilities, abilityOrder] = await Promise.all([
-        // GET /v1/builds?hero_id={id}&sort_by=weekly_favorites&limit=3&only_latest=true&build_language=English
         // build_language=English filters to NA/EN builds, avoiding non-English region builds
         fetch(`${API}/v1/builds?hero_id=${id}&sort_by=weekly_favorites&limit=3&only_latest=true&build_language=English`)
-          .then(r => (r.ok ? r.json() : [])),
+          .then(r => (r.ok ? r.json() : Promise.resolve([]))),
 
         // GET /v1/analytics/hero-build-stats/{id}
         fetch(`${API}/v1/analytics/hero-build-stats/${id}`)
-          .then(r => (r.ok ? r.json() : [])),
+          .then(r => (r.ok ? r.json() : Promise.resolve([]))),
 
         // GET /v1/assets/items — cached module-level
         fetchItemsCache(),
 
         // GET /v1/assets/items/by-hero-id/{id} — hero signature abilities
         fetch(`${API}/v1/assets/items/by-hero-id/${id}`)
-          .then(r => (r.ok ? r.json() : [])),
+          .then(r => (r.ok ? r.json() : Promise.resolve([]))),
 
         // GET /v1/analytics/ability-order-stats?hero_id={id}&min_matches=200
         fetch(`${API}/v1/analytics/ability-order-stats?hero_id=${id}&min_matches=200`)
-          .then(r => (r.ok ? r.json() : [])),
+          .then(r => (r.ok ? r.json() : Promise.resolve([]))),
       ]);
 
       this.builds = Array.isArray(builds) ? builds.slice(0, 3) : [];
@@ -238,9 +268,17 @@ export class HeroDetailsPage {
       // Keep the 4 real signature abilities: exclude the shared melee/punch ('Melee')
       // and any ability whose name is still a raw class name (contains '_'), e.g. 'ability_hero_slide'.
       const rawAbilities: HeroAbilityItem[] = Array.isArray(abilities) ? abilities : [];
+      // Stable-sort so the ultimate always occupies the last (4th) slot regardless of API return
+      // order.  The items cache is already populated at this point so ability_type is safe to read.
+      // Without this sort, heroes like Infernus had their ultimate appear as the first button.
       this.heroAbilities = rawAbilities
         .filter(a => a.name !== 'Melee' && !a.name.includes('_'))
-        .slice(0, 4);
+        .slice(0, 4)
+        .sort((a, b) => {
+          const aUlt = (this.items.get(a.id) as any)?.ability_type === 'ultimate' ? 1 : 0;
+          const bUlt = (this.items.get(b.id) as any)?.ability_type === 'ultimate' ? 1 : 0;
+          return aUlt - bUlt;
+        });
 
       this.render();
     } catch {
@@ -352,6 +390,7 @@ export class HeroDetailsPage {
       case 'skill-path': return this.renderSkillPathTab();
       case 'lore':       return this.renderLoreTab();
       case 'items':      return this.renderItemsTab();
+      case 'overview':   return this.renderOverviewTab();
       default:           return this.renderPlaceholder(TABS.find(t => t.id === this.currentTab)?.label ?? '');
     }
   }
@@ -383,6 +422,12 @@ export class HeroDetailsPage {
     return best;
   }
 
+  /**
+   * Classifies a build as Gun or Mystic based on the majority item-slot type
+   * across all mod_categories.  Vitality items are neutral and don't influence
+   * the result.  Returns null if no weapon/spirit items are found (e.g. build data
+   * not yet resolved from the items cache).
+   */
   private damageType(build: BuildData): 'Gun' | 'Mystic' | null {
     let weapon = 0, spirit = 0;
     (build.hero_build.details.mod_categories ?? []).forEach(cat => {
@@ -450,7 +495,7 @@ export class HeroDetailsPage {
     return this.renderBuildSummary(build, idx) + this.renderBuildFullGrid(build);
   }
 
-  private renderBuildSummary(build: BuildData, idx: number): string {
+  private renderBuildSummary(build: BuildData, _idx: number): string {
     const s       = this.buildStats.find(s => s.hero_build_id === build.hero_build.hero_build_id);
     const wr      = s && s.matches > 0 ? (s.wins / s.matches * 100).toFixed(1) : null;
     const matches = s?.matches ?? 0;
@@ -701,6 +746,499 @@ export class HeroDetailsPage {
     }).join('');
   }
 
+  // ── OVERVIEW & ABILITIES TAB ────────────────────────────────────────────────
+  // All data displayed here (weapon stats, base stats, ability descriptions,
+  // upgrade tiers) is already present in this.hero, this.items, and
+  // this.heroAbilities — no additional API requests are needed when switching
+  // to this tab.
+
+  /**
+   * Resolves the hero's primary weapon item from the global items cache.
+   * The API gives us hero.items.weapon_primary as a class_name string (e.g.
+   * "citadel_weapon_base_pistol"), NOT as a numeric item ID.  We must scan the
+   * full items Map to find the entry whose class_name field matches, because
+   * there is no reverse-lookup endpoint.
+   */
+  private getWeaponItem(): ItemData | undefined {
+    const className = (this.hero as any)?.items?.weapon_primary;
+    if (!className) return undefined;
+    for (const item of this.items.values()) {
+      if ((item as any).class_name === className) return item;
+    }
+    return undefined;
+  }
+
+  private renderOverviewTab(): string {
+    if (!this.hero) return '';
+    return `
+      <div class="p-8 max-w-6xl">
+        <div>
+          <h2 class="text-2xl font-bold text-white tracking-wide">${this.hero.name ?? 'Hero'} — Overview &amp; Abilities</h2>
+          <p class="text-dry-sage-500 text-sm mt-1">Combat statistics and signature abilities.</p>
+          <div class="mt-4 h-px bg-gradient-to-r from-dry-sage-400/50 via-charcoal-400 to-transparent"></div>
+        </div>
+
+        <div class="mt-6 flex gap-6">
+
+          <!-- ── LEFT: Stat panels ──────────────────────────────────── -->
+          <div class="w-52 shrink-0 space-y-5">
+            ${this.renderWeaponStatBlock()}
+            ${this.renderBaseStatBlock()}
+          </div>
+
+          <!-- ── RIGHT: Abilities ───────────────────────────────────── -->
+          <div class="flex-1 min-w-0 space-y-4">
+            <div>
+              <p class="text-[9px] uppercase tracking-widest text-grey-600 font-medium mb-3">Abilities</p>
+              <div id="ability-selector">
+                ${this.renderAbilitySelector()}
+              </div>
+            </div>
+            <div id="ability-detail-panel">
+              ${this.renderAbilityDetail(this.selectedAbilityIdx)}
+            </div>
+          </div>
+
+        </div>
+      </div>`;
+  }
+
+  /**
+   * Weapon stats live nested at item.weapon_info on the primary-weapon item,
+   * not on the hero object directly.  The weapon item is resolved via
+   * getWeaponItem() which cross-references hero.items.weapon_primary (class_name)
+   * against the items cache.
+   */
+  private renderWeaponStatBlock(): string {
+    const wi = (this.getWeaponItem() as any)?.weapon_info;
+    const fmt = (n: number | undefined, dec = 2) =>
+      typeof n === 'number' ? n.toFixed(dec) : '—';
+    const rows: [string, string][] = [
+      ['Clip Size',     wi?.clip_size != null ? String(wi.clip_size) : '—'],
+      ['Bullet Damage', fmt(wi?.bullet_damage)],
+      ['Fire Rate',     wi?.shots_per_second != null ? `${fmt(wi.shots_per_second)} rnd/s` : '—'],
+      ['DPS',           fmt(wi?.damage_per_second)],
+    ];
+    return `
+      <div class="bg-charcoal-200 rounded-xl border border-charcoal-400 overflow-hidden">
+        <div class="px-4 py-2.5 border-b border-charcoal-400 flex items-center gap-2">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+               class="w-3.5 h-3.5 text-orange-400 shrink-0">
+            <circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3"/>
+            <line x1="12" y1="3" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="21"/>
+            <line x1="3" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="21" y2="12"/>
+          </svg>
+          <p class="text-[9px] uppercase tracking-widest text-grey-600 font-medium">Weapon Stats</p>
+        </div>
+        <div class="divide-y divide-charcoal-400">
+          ${rows.map(([label, value]) => `
+            <div class="flex items-center justify-between px-4 py-2">
+              <span class="text-grey-500 text-xs">${label}</span>
+              <span class="text-white text-xs font-semibold tabular-nums">${value}</span>
+            </div>`).join('')}
+        </div>
+      </div>`;
+  }
+
+  /**
+   * Base stats come from hero.starting_stats where each entry is an object
+   * { value, display_stat_name } rather than a plain number.  We read the
+   * nested .value field through the helper v().
+   */
+  private renderBaseStatBlock(): string {
+    const s = (this.hero as any)?.starting_stats ?? {};
+    const v = (key: string, suffix = '') => {
+      const val = s[key]?.value;
+      return val != null ? `${val}${suffix}` : '—';
+    };
+    const cells: [string, string][] = [
+      ['Max Health',  v('max_health')],
+      ['Move Speed',  v('max_move_speed', ' m/s')],
+      ['Light Melee', v('light_melee_damage')],
+      ['Heavy Melee', v('heavy_melee_damage')],
+    ];
+    return `
+      <div class="bg-charcoal-200 rounded-xl border border-charcoal-400 overflow-hidden">
+        <div class="px-4 py-2.5 border-b border-charcoal-400 flex items-center gap-2">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+               class="w-3.5 h-3.5 text-green-400 shrink-0">
+            <path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/>
+          </svg>
+          <p class="text-[9px] uppercase tracking-widest text-grey-600 font-medium">Base Stats</p>
+        </div>
+        <div class="grid grid-cols-2">
+          ${cells.map(([label, value], i) => `
+            <div class="px-3 py-2.5 ${i % 2 === 0 ? 'border-r' : ''} ${i < 2 ? 'border-b' : ''} border-charcoal-400">
+              <p class="text-[9px] text-grey-600 uppercase tracking-wider mb-0.5 leading-none">${label}</p>
+              <p class="text-white text-sm font-bold leading-none tabular-nums">${value}</p>
+            </div>`).join('')}
+        </div>
+      </div>`;
+  }
+
+  /**
+   * Renders 4 clickable ability buttons.  The ultimate (ability_type === 'ultimate'
+   * from the items cache) receives a golden border and ULT badge to visually
+   * distinguish it from signature abilities.  Selection state is tracked by
+   * this.selectedAbilityIdx and written into inline styles rather than toggling
+   * CSS classes so the active color can vary per ability type.
+   */
+  private renderAbilitySelector(): string {
+    if (!this.heroAbilities.length) {
+      return `<p class="text-grey-600 text-xs">No ability data available.</p>`;
+    }
+    return `
+      <div class="grid grid-cols-4 gap-3">
+        ${this.heroAbilities.map((ability, idx) => {
+          const full       = this.items.get(ability.id);
+          const isUltimate = (full as any)?.ability_type === 'ultimate';
+          const isSel      = idx === this.selectedAbilityIdx;
+          const img        = itemImg(ability);
+          const borderColor = isSel
+            ? isUltimate ? 'rgba(251,191,36,0.7)' : '#b0a472'
+            : 'rgba(73,73,73,1)';
+          return `
+            <button data-ability-idx="${idx}"
+              class="ability-btn relative flex flex-col items-center gap-2 p-3
+                     rounded-xl border bg-charcoal-200 transition-all duration-200 cursor-pointer
+                     ${isSel ? 'bg-charcoal-300/80' : 'hover:bg-charcoal-300/40'}"
+              style="border-color:${borderColor};">
+              ${isUltimate ? `
+                <span class="absolute top-1.5 right-1.5 text-[7px] font-bold px-1 py-0.5 rounded leading-none"
+                      style="background:rgba(250,180,30,0.15);color:#fbbf24;border:1px solid rgba(250,180,30,0.3);">
+                  ULT
+                </span>` : ''}
+              <div class="w-16 h-16 rounded-lg overflow-hidden bg-charcoal-300 shrink-0"
+                   style="border:1px solid ${isUltimate ? 'rgba(251,191,36,0.2)' : 'rgba(255,255,255,0.06)'};">
+                ${img
+                  ? `<img src="${img}" alt="${ability.name}" class="w-full h-full object-cover"/>`
+                  : `<div class="w-full h-full flex items-center justify-center text-grey-600 text-xs font-bold">${idx + 1}</div>`}
+              </div>
+              <span class="text-[11px] font-medium text-center leading-tight w-full truncate
+                           ${isSel ? 'text-white' : 'text-grey-400'}">${ability.name}</span>
+            </button>`;
+        }).join('')}
+      </div>`;
+  }
+
+  private renderAbilityDetail(idx: number): string {
+    const ability = this.heroAbilities[idx];
+    if (!ability) {
+      return `
+        <div class="bg-charcoal-200 rounded-xl border border-charcoal-400 px-5 py-8 text-center">
+          <p class="text-grey-600 text-sm">Select an ability to view its details.</p>
+        </div>`;
+    }
+
+    // Resolve the full ItemData for this ability from the global items cache.
+    // Ability-specific metadata (ability_type, description, properties, upgrades)
+    // is only available on the full item, not on the lightweight HeroAbilityItem.
+    const full: any       = this.items.get(ability.id) ?? {};
+    const abilityType     = String(full?.ability_type ?? '');
+    const isUltimate      = abilityType === 'ultimate';
+    const props           = (full as ItemData)?.properties ?? {};
+    const desc: any       = full?.description ?? {};
+
+    // ── Description ──────────────────────────────────────────────────────────
+    const rawDesc  = typeof desc === 'string' ? desc : (desc.desc ?? desc.active ?? desc.passive ?? '');
+    const parsedDesc = rawDesc ? this.parseAbilityDesc(rawDesc) : '';
+
+    // ── Quip ─────────────────────────────────────────────────────────────────
+    const quip = typeof desc === 'object' ? String(desc.quip ?? '') : '';
+
+    // ── Upgrade tiers ─────────────────────────────────────────────────────────
+    const stripHtml = (s: string) =>
+      s.replace(/<[^>]+>/g, '').replace(/&[a-z]+;/gi, ' ').replace(/\s+/g, ' ').trim();
+
+    const rawUpgradesArr: any[] = (full as any)?.upgrades ?? [];
+
+    // Two-tier fallback for upgrade text:
+    //   1. description.t1_desc / t2_desc / t3_desc — human-readable HTML strings
+    //   2. upgrades[i].property_upgrades — machine-readable numeric bonus objects
+    // Some abilities (e.g. Concussive Combustion's T1) omit the explicit desc entirely,
+    // so the numeric fallback ensures all three tiers are always populated when data exists.
+    const buildUpgradeText = (tierIdx: number): string | null => {
+      // Prefer explicit human-readable text from description
+      const txKey = `t${tierIdx + 1}_desc`;
+      const explicit = typeof desc === 'object' && desc ? desc[txKey] as string | undefined : undefined;
+      if (explicit) return stripHtml(explicit);
+
+      // Fall back to property_upgrades numeric bonuses
+      const upg = rawUpgradesArr[tierIdx];
+      const propUpgrades: Array<{ name: string; bonus: string | number }> = upg?.property_upgrades ?? [];
+      if (!propUpgrades.length) return null;
+
+      return propUpgrades.map(pu => {
+        const prop    = props[pu.name] as any;
+        const label   = prop?.label ?? pu.name;
+        const postfix = prop?.postfix ?? '';
+        const bNum    = typeof pu.bonus === 'number' ? pu.bonus : parseFloat(String(pu.bonus));
+        let bStr: string;
+        if (!isNaN(bNum)) {
+          bStr = `${bNum >= 0 ? '+' : ''}${bNum}${postfix}`;
+        } else {
+          // Bonus already contains its unit (e.g. "7m") — prefix with +
+          bStr = `+${pu.bonus}`;
+        }
+        return `${bStr} ${label}`;
+      }).join(' · ');
+    };
+
+    const TC = ['#c084fc', '#a855f7', '#7c3aed'];
+    const upgrades: { tier: string; text: string; color: string }[] = [];
+    for (let i = 0; i < 3; i++) {
+      const text = buildUpgradeText(i);
+      if (text) upgrades.push({ tier: `T${i + 1}`, text, color: TC[i] });
+    }
+
+    // ── Standard stats ────────────────────────────────────────────────────────
+    // These four/five properties are surfaced as dedicated stat chips at the bottom
+    // of every ability panel.  Charges and charge delay only appear when applicable.
+    const stdVal = (p: any, fallback = '0') => {
+      if (!p) return fallback;
+      return `${p.value ?? fallback}${p.postfix ?? ''}`;
+    };
+    const charges    = Number(props.AbilityCharges?.value ?? 0);
+    const chargeDly  = Number(props.AbilityCooldownBetweenCharge?.value ?? -1);
+    const stdStats: { label: string; value: string }[] = [
+      { label: 'Cooldown',   value: stdVal(props.AbilityCooldown)   },
+      { label: 'Cast Range', value: stdVal(props.AbilityCastRange)  },
+      { label: 'Duration',   value: stdVal(props.AbilityDuration)   },
+      ...(charges > 0 ? [{ label: 'Charges', value: String(charges) }] : []),
+      ...(charges > 0 && chargeDly > 0 ? [{ label: 'Charge Delay', value: `${chargeDly}s` }] : []),
+    ];
+
+    // ── Dynamic key stats ─────────────────────────────────────────────────────
+    // Shows up to 6 "interesting" properties that have a non-zero value.
+    // BORING excludes properties that are either already shown as dedicated chips
+    // (Cooldown, Duration, etc.) or are internal engine values irrelevant to the
+    // player (cast delay, channel time, unit target limit).
+    const BORING = new Set([
+      'AbilityUnitTargetLimit', 'AbilityCastDelay', 'AbilityChannelTime',
+      'AbilityPostCastDuration', 'ChannelMoveSpeed', 'AbilityResourceCost',
+      'AbilityCooldown', 'AbilityDuration', 'AbilityCastRange',
+      'AbilityCharges', 'AbilityCooldownBetweenCharge',
+    ]);
+    const dynamicStats = Object.entries(props)
+      .filter(([key, p]) => {
+        if (BORING.has(key) || !(p as any)?.label) return false;
+        const v = String((p as any).value ?? '');
+        return v && v !== '0' && v !== '-1' && v !== '0%' && v !== '0m' && v !== '0s' && v !== '0.0';
+      })
+      .slice(0, 6)
+      .map(([, p]) => ({
+        label: (p as any).label as string,
+        value: `${(p as any).value}${(p as any).postfix ?? ''}`,
+      }));
+
+    // ── Badges / styling ─────────────────────────────────────────────────────
+    const panelBorder = isUltimate ? 'rgba(251,191,36,0.25)' : '#494949';
+    const typeBadge = isUltimate
+      ? `<span class="inline-flex items-center gap-1 text-[9px] px-2 py-0.5 rounded font-bold uppercase
+                      tracking-widest"
+               style="background:rgba(250,180,30,0.12);color:#fbbf24;border:1px solid rgba(250,180,30,0.35);">
+           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-2.5 h-2.5">
+             <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+           </svg>
+           Ultimate
+         </span>`
+      : abilityType === 'signature'
+      ? `<span class="text-[9px] px-2 py-0.5 rounded font-bold uppercase tracking-widest"
+               style="background:rgba(176,164,114,0.1);color:#b0a472;border:1px solid rgba(176,164,114,0.25);">
+           Signature
+         </span>`
+      : '';
+
+    const statChip = (label: string, value: string) => `
+      <div class="flex flex-col items-center justify-center px-4 py-2 rounded-lg min-w-[76px]
+                  bg-charcoal-300/60 border border-charcoal-400 text-center">
+        <span class="text-[9px] uppercase tracking-widest text-grey-600 mb-0.5">${label}</span>
+        <span class="text-white text-sm font-bold leading-none tabular-nums">${value}</span>
+      </div>`;
+
+    return `
+      <div class="bg-charcoal-200 rounded-xl overflow-hidden" style="border:1px solid ${panelBorder};">
+
+        <!-- ── Header ──────────────────────────────────────────────── -->
+        <div class="px-5 py-4 border-b border-charcoal-400"
+             style="${isUltimate ? 'background:linear-gradient(to right,rgba(120,53,15,0.22),transparent);' : ''}">
+          <div class="flex items-center gap-3 flex-wrap">
+            <h3 class="text-white text-xl font-bold tracking-wide leading-none">${ability.name}</h3>
+            ${typeBadge}
+          </div>
+          ${quip ? `<p class="text-grey-500 text-sm mt-1.5 italic leading-snug">${quip}</p>` : ''}
+        </div>
+
+        <!-- ── Description ─────────────────────────────────────────── -->
+        <div class="px-5 py-4">
+          <p class="text-grey-800 text-sm leading-relaxed">
+            ${parsedDesc || `<span class="text-grey-600">No description available.</span>`}
+          </p>
+        </div>
+
+        ${upgrades.length ? `
+        <!-- ── Upgrade Tiers ───────────────────────────────────────── -->
+        <div class="px-5 py-3.5 border-t border-charcoal-400 space-y-2">
+          <p class="text-xs font-semibold text-grey-700 uppercase tracking-widest mb-3">Ability Upgrades</p>
+          ${upgrades.map(u => `
+            <div class="flex items-start gap-2.5">
+              <span class="shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-sm leading-tight mt-0.5"
+                    style="background:${u.color}22;color:${u.color};border:1px solid ${u.color}44;">${u.tier}</span>
+              <span class="text-grey-700 text-xs leading-relaxed">${u.text}</span>
+            </div>`).join('')}
+        </div>` : ''}
+
+        <!-- ── Stats Footer ─────────────────────────────────────────── -->
+        <div class="px-5 py-4 border-t border-charcoal-400 space-y-3">
+          ${dynamicStats.length ? `
+          <div class="flex flex-wrap gap-2">
+            ${dynamicStats.map(s => `
+              <div class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg
+                          bg-charcoal-300/60 border border-charcoal-400">
+                <span class="text-grey-500 text-[10px]">${s.label}</span>
+                <span class="text-dry-sage-400 text-[10px] font-semibold tabular-nums">${s.value}</span>
+              </div>`).join('')}
+          </div>` : ''}
+          <div class="flex flex-wrap gap-2">
+            ${stdStats.map(s => statChip(s.label, s.value)).join('')}
+          </div>
+        </div>
+
+      </div>`;
+  }
+
+  /**
+   * Strips API HTML then highlights status-effect and damage-type keywords with
+   * colored <span> elements and inline SVG icons.
+   *
+   * WHY single-pass regex:  building one combined RegExp from all RULES patterns
+   * and replacing in a single pass prevents double-wrapping — if naive sequential
+   * replacements were used, a keyword wrapped in a <span> on the first pass could
+   * be partially matched by a later rule and produce broken HTML.
+   *
+   * Keywords sourced from docs/statusEffect.md.
+   * Damage types: spirit (purple), weapon (orange).
+   * Status effects: stun (amber), slow (sky), disarm (red), ground (lime),
+   *   silence (violet), immobilize/root (teal), bleed (rose), burn/curse (fuchsia),
+   *   sleep (indigo), unstoppable (emerald).
+   */
+  private parseAbilityDesc(raw: string): string {
+    const text = raw
+      .replace(/<[^>]+>/g, ' ')      // strip HTML tags from the API's rich text
+      .replace(/&amp;/g, '&').replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>').replace(/&nbsp;/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    const ico = (content: string) =>
+      `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+       stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+       class="inline w-3 h-3 shrink-0 -mt-0.5" aria-hidden="true">${content}</svg>`;
+
+    const RULES: { re: RegExp; cls: string; icon: string }[] = [
+      // ── Damage types ───────────────────────────────────────────────────────
+      {
+        re: /\b(spirit damage|mystic damage)\b/gi,
+        cls: 'text-purple-400',
+        icon: ico('<path d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z"/>'),
+      },
+      {
+        re: /\b(weapon damage|bullet damage)\b/gi,
+        cls: 'text-orange-400',
+        icon: ico('<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3"/><line x1="12" y1="3" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="21"/><line x1="3" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="21" y2="12"/>'),
+      },
+      // ── Status effects ─────────────────────────────────────────────────────
+      {
+        re: /\b(stun(?:ned|s)?)\b/gi,
+        cls: 'text-amber-400',
+        icon: ico('<path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>'),
+      },
+      {
+        re: /\b(slow(?:ed|s)?|movement slow)\b/gi,
+        cls: 'text-sky-400',
+        icon: ico('<polyline points="17 11 12 6 7 11"/><polyline points="17 18 12 13 7 18"/>'),
+      },
+      {
+        re: /\b(disarm(?:ed)?)\b/gi,
+        cls: 'text-red-400',
+        icon: ico('<circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/>'),
+      },
+      {
+        re: /\b(ground(?:ed)?)\b/gi,
+        cls: 'text-lime-400',
+        icon: ico('<circle cx="12" cy="5" r="3"/><line x1="12" y1="8" x2="12" y2="16"/><path d="M7 16c0 2.76 2.24 5 5 5s5-2.24 5-5"/><line x1="3" y1="22" x2="21" y2="22"/>'),
+      },
+      {
+        re: /\b(silence(?:d)?|silences)\b/gi,
+        cls: 'text-violet-400',
+        icon: ico('<path d="M11 5L6 9H2v6h4l5 4V5z"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/>'),
+      },
+      {
+        re: /\b(immobilize[ds]?|root(?:ed)?)\b/gi,
+        cls: 'text-teal-400',
+        icon: ico('<line x1="12" y1="2" x2="12" y2="22"/><polyline points="7 7 12 2 17 7"/><line x1="2" y1="22" x2="22" y2="22"/>'),
+      },
+      {
+        re: /\b(bleed(?:ing)?)\b/gi,
+        cls: 'text-rose-400',
+        icon: ico('<path d="M12 22a7 7 0 007-7c0-2-1-3.9-3-5.5s-3.5-4-4-6.5c-.5 2.5-2 4.9-4 6.5C6 11.1 5 13 5 15a7 7 0 007 7z"/>'),
+      },
+      {
+        re: /\b(burn(?:ing)?|cursed?)\b/gi,
+        cls: 'text-fuchsia-400',
+        icon: ico('<path d="M8.5 14.5A2.5 2.5 0 0011 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 11-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 002.5 2.5z"/>'),
+      },
+      {
+        re: /\b(sleep(?:ing)?)\b/gi,
+        cls: 'text-indigo-400',
+        icon: ico('<path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/>'),
+      },
+      {
+        re: /\b(unstoppable)\b/gi,
+        cls: 'text-emerald-400',
+        icon: ico('<path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>'),
+      },
+    ];
+
+    const combined = new RegExp(RULES.map(r => `(?:${r.re.source})`).join('|'), 'gi');
+
+    return text.replace(combined, match => {
+      const rule = RULES.find(r => new RegExp(`^(?:${r.re.source})$`, 'i').test(match));
+      if (!rule) return match;
+      return `<span class="${rule.cls} inline-flex items-center gap-0.5 font-semibold">${rule.icon}${match}</span>`;
+    });
+  }
+
+  /**
+   * Attaches click handlers to the 4 ability selector buttons.
+   *
+   * WHY surgical re-render instead of a full this.render() call:
+   * Replacing only #ability-selector and #ability-detail-panel preserves the
+   * vertical scroll position of the overview tab.  A full re-render would scroll
+   * back to the top on every ability click.
+   *
+   * bindAbilityEvents() is called recursively after each innerHTML replacement
+   * because the old DOM nodes (and their listeners) are discarded by innerHTML
+   * — the new nodes need fresh event listeners attached.
+   */
+  private bindAbilityEvents(): void {
+    if (this.currentTab !== 'overview') return;
+    this.container?.querySelectorAll<HTMLButtonElement>('.ability-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const idx = parseInt(btn.dataset.abilityIdx ?? '', 10);
+        if (isNaN(idx) || idx === this.selectedAbilityIdx) return;
+        this.selectedAbilityIdx = idx;
+        const selectorEl = this.container?.querySelector<HTMLElement>('#ability-selector');
+        if (selectorEl) selectorEl.innerHTML = this.renderAbilitySelector();
+        const detailEl = this.container?.querySelector<HTMLElement>('#ability-detail-panel');
+        if (detailEl) detailEl.innerHTML = this.renderAbilityDetail(this.selectedAbilityIdx);
+        this.bindAbilityEvents();
+      });
+    });
+  }
+
   // ── SKILL PATH TAB ──────────────────────────────────────────────────────────
 
   private renderSkillPathTab(): string {
@@ -733,6 +1271,15 @@ export class HeroDetailsPage {
       </div>`;
   }
 
+  /**
+   * Renders a single skill-path variation as a 4-row × N-column boolean grid.
+   * Rows = the 4 hero abilities (same order as heroAbilities array).
+   * Columns = game levels at which an upgrade was taken.
+   * A cell is filled when ability[row] was upgraded at level [col].
+   *
+   * abilityIdxMap translates API ability IDs → row indices so cells land in the
+   * correct ability row even if the API returns abilities in a different order.
+   */
   private renderSkillVariation(
     stat: AbilityOrderStats,
     varIdx: number,
@@ -742,7 +1289,7 @@ export class HeroDetailsPage {
     const steps    = stat.abilities.length;
     const CELL     = 22; // px per column
 
-    // Build 4×steps grid
+    // Build 4×steps boolean grid: grid[row][step] = true if this ability was upgraded at this step
     const grid: boolean[][] = Array.from({ length: 4 }, () => Array(steps).fill(false));
     stat.abilities.forEach((abilId, step) => {
       const row = abilityIdxMap.get(abilId);
@@ -887,7 +1434,7 @@ export class HeroDetailsPage {
 
       // Resolve 'latest' sentinel to the actual most-recent patch date string
       if (this.itemsPeriod === 'latest' && this.patchDays.length > 0) {
-        this.itemsPeriod = this.patchDays[this.patchDays.length - 1];
+        this.itemsPeriod = this.patchDays[this.patchDays.length - 1] as ItemsPeriod;
       }
 
       const { curStart, curEnd, refStart, refEnd } = this.getPeriodTimestamps();
@@ -935,6 +1482,13 @@ export class HeroDetailsPage {
     return `${API}/v1/analytics/hero-stats?${p}`;
   }
 
+  /**
+   * Appends min_average_badge / max_average_badge query params from the
+   * RANKS constant.  The API uses raw badge integers (0–116) rather than
+   * human-friendly tier names, so we look up the tier in RANKS to get the
+   * numeric range boundaries.  'plus' mode omits max_average_badge to include
+   * all ranks above the selected tier.
+   */
   private appendBadgeParams(p: URLSearchParams): void {
     if (this.itemsRank.mode === 'all') return;
     const rank = RANKS.find(r => r.tier === this.itemsRank.tier);
@@ -943,11 +1497,25 @@ export class HeroDetailsPage {
     if (this.itemsRank.mode === 'exact') p.set('max_average_badge', String(rank.badgeMax));
   }
 
+  /**
+   * Converts the current period selection into two Unix-timestamp windows:
+   *   curStart–curEnd  = the selected period (shown as current stats)
+   *   refStart–refEnd  = the immediately preceding period (used for change deltas)
+   *
+   * For relative periods (7d, 14d …) the reference is a same-length window
+   * immediately before the current one.
+   *
+   * For patch-date periods the reference is the preceding patch window.  This
+   * means WR/usage changes always compare apples-to-apples across two patches
+   * rather than against a fixed calendar interval.
+   *
+   * curEnd = 0 means "no upper bound" (open-ended, up to now).
+   */
   private getPeriodTimestamps(): { curStart: number; curEnd: number; refStart: number; refEnd: number } {
     const now = Math.floor(Date.now() / 1000);
     const day = 86400;
 
-    // Relative periods
+    // Relative periods — mirror-length window before as reference
     const RELATIVE: Record<string, number> = { '7d': 7, '14d': 14, '30d': 30, '90d': 90 };
     if (RELATIVE[this.itemsPeriod] !== undefined) {
       const d = RELATIVE[this.itemsPeriod] * day;
@@ -965,11 +1533,11 @@ export class HeroDetailsPage {
 
     const dateIdx  = this.patchDays.indexOf(targetDate);
     const curStart = Math.floor(new Date(targetDate).getTime() / 1000);
-    // Upper bound = next patch date (or none for the latest patch)
+    // Upper bound = next patch date (or open-ended for the latest patch)
     const curEnd   = dateIdx >= 0 && dateIdx < this.patchDays.length - 1
       ? Math.floor(new Date(this.patchDays[dateIdx + 1]).getTime() / 1000)
       : 0;
-    // Reference period = previous patch window
+    // Reference = the patch window before the selected one; fall back to 14 days if first patch
     const refDate  = dateIdx > 0 ? this.patchDays[dateIdx - 1] : null;
     const refStart = refDate
       ? Math.floor(new Date(refDate).getTime() / 1000)
@@ -978,6 +1546,12 @@ export class HeroDetailsPage {
     return { curStart, curEnd, refStart, refEnd: curStart };
   }
 
+  /**
+   * Joins current-period stats with reference-period stats to produce display rows.
+   * Usage rate = item matches / total hero matches for the period, expressed as %.
+   * Change columns = current value − reference value (signed delta, percentage points).
+   * Items with no item_slot_type (abilities, passives) or filtered-out tier are skipped.
+   */
   private computeItemRows(): ItemStatRow[] {
     const curMap = new Map<number, ApiItemStat>(this.itemsCurrentStats.map(s => [s.item_id, s]));
     const refMap = new Map<number, ApiItemStat>(this.itemsRefStats.map(s => [s.item_id, s]));
@@ -1335,6 +1909,7 @@ export class HeroDetailsPage {
     });
     this.bindBuildEvents();
     this.bindItemsEvents();
+    this.bindAbilityEvents();
   }
 
   private bindBuildEvents(): void {
@@ -1354,6 +1929,15 @@ export class HeroDetailsPage {
     });
   }
 
+  /**
+   * Wires up all interactive controls inside the Items tab.
+   *
+   * Controls that trigger a new API request (period selector, rank selector,
+   * refresh button) clear the cached stats and call fetchItemsData().
+   *
+   * Controls that only reorganise already-fetched data (column sort headers,
+   * tier toggle buttons) just call refreshTabContent() — no network round-trip.
+   */
   private bindItemsEvents(): void {
     if (this.currentTab !== 'items') return;
 
@@ -1372,6 +1956,7 @@ export class HeroDetailsPage {
       if (val === 'all') {
         this.itemsRank = { mode: 'all', tier: 0 };
       } else if (val.endsWith('+')) {
+        // "tier+" = selected rank AND all higher tiers (min_average_badge only, no max)
         this.itemsRank = { mode: 'plus', tier: parseInt(val) };
       } else {
         this.itemsRank = { mode: 'exact', tier: parseInt(val) };
@@ -1382,7 +1967,7 @@ export class HeroDetailsPage {
       this.fetchItemsData();
     });
 
-    // Column sort — client-side, no re-fetch
+    // Column sort — client-side re-sort only, no re-fetch
     this.container?.querySelectorAll<HTMLButtonElement>('.items-sort-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         const col = btn.dataset.sort as ItemsSortCol;
