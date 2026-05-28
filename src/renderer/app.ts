@@ -132,6 +132,15 @@ export class App {
       }
     });
 
+    // Player name click in match history → load that player's profile
+    document.addEventListener('navigate-player', (e: Event) => {
+      const { accountId } = (e as CustomEvent<{ accountId: number }>).detail;
+      if (this.contentContainer && accountId) {
+        this.currentPage = 'profil';
+        this.profilPage.mountForPlayer(this.contentContainer, accountId);
+      }
+    });
+
     // Initial page render
     this.renderPage(this.currentPage);
 

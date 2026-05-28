@@ -39,6 +39,7 @@ import type {
   ItemStatRow,
 } from '../../../lib/types';
 import { RANKS } from '../../../lib/constants/ranks';
+import { renderItemTierBadge, itemSlotColor } from '../../../lib/utils';
 
 const API = 'https://api.deadlock-api.com';
 
@@ -122,9 +123,6 @@ function itemStatLines(item: ItemData): string[] {
   }
   return lines;
 }
-
-// ── Hero tier badge labels ────────────────────────────────────────────────────
-const TIER_LABEL: Record<number, string> = { 1: 'I', 2: 'II', 3: 'III', 4: 'IV' };
 
 // ── Items tab sort types ──────────────────────────────────────────────────────
 type ItemsSortCol = 'name' | 'cost' | 'winRate' | 'winRateChange' | 'usage' | 'usageChange' | 'winloss';
@@ -642,13 +640,8 @@ export class HeroDetailsPage {
                     const name      = item?.name ?? `#${mod.ability_id}`;
                     const desc      = item ? itemDesc(item) : '';
                     const cost      = item?.cost ?? null;
-                    const tier      = item?.item_tier ?? null;
-                    const tierLabel = tier && TIER_LABEL[tier] ? TIER_LABEL[tier] : null;
                     const stats     = item ? itemStatLines(item) : [];
-                    const slotCol   = item?.item_slot_type === 'weapon'   ? '#f97316'
-                                    : item?.item_slot_type === 'spirit'   ? '#a855f7'
-                                    : item?.item_slot_type === 'vitality' ? '#22c55e'
-                                    : '#4b5563';
+                    const slotCol   = itemSlotColor(item?.item_slot_type);
                     return `
                       <div class="relative group shrink-0 flex flex-col items-center gap-0.5" style="width:52px;">
                         <!-- Icon square -->
@@ -659,10 +652,8 @@ export class HeroDetailsPage {
                             : `<div class="w-full h-full flex items-center justify-center text-grey-600 text-[8px] p-0.5 text-center leading-tight">${name.slice(0, 5)}</div>`}
                           <!-- Slot colour bottom strip -->
                           <div class="absolute bottom-0 left-0 right-0 h-0.5" style="background:${slotCol};"></div>
-                          <!-- Tier badge top-right -->
-                          ${tierLabel ? `
-                            <span class="absolute top-0 right-0 text-[8px] font-bold px-0.5 leading-tight rounded-bl"
-                                  style="background:${slotCol};color:#fff;">${tierLabel}</span>` : ''}
+                          <!-- Tier badge top-right (shared utility — Roman numeral + slot color) -->
+                          ${item ? renderItemTierBadge(item) : ''}
                         </div>
                         <!-- Cost always visible below icon -->
                         ${cost ? `<p class="text-[9px] font-semibold text-yellow-400 leading-none text-center">${cost.toLocaleString()}</p>` : ''}
@@ -1772,12 +1763,7 @@ export class HeroDetailsPage {
     const imgUrl    = item ? itemImg(item) : '';
     const name      = item?.name ?? `#${row.itemId}`;
     const cost      = item?.cost ?? null;
-    const tier      = item?.item_tier ?? null;
-    const tierLabel = tier && TIER_LABEL[tier] ? TIER_LABEL[tier] : null;
-    const slotCol   = item?.item_slot_type === 'weapon'   ? '#f97316'
-                    : item?.item_slot_type === 'spirit'   ? '#a855f7'
-                    : item?.item_slot_type === 'vitality' ? '#22c55e'
-                    : '#4b5563';
+    const slotCol   = itemSlotColor(item?.item_slot_type);
 
     return `
       <tr class="border-b border-charcoal-400 ${idx % 2 === 0 ? 'bg-charcoal-100' : 'bg-charcoal-200/40'} hover:bg-charcoal-300/50 transition-colors">
@@ -1790,9 +1776,7 @@ export class HeroDetailsPage {
                    style="border-color:${slotCol}55;">
                 ${imgUrl ? `<img src="${imgUrl}" alt="${name}" class="w-full h-full object-cover"/>` : ''}
                 <div class="absolute bottom-0 left-0 right-0 h-0.5" style="background:${slotCol};"></div>
-                ${tierLabel ? `
-                  <span class="absolute top-0 right-0 text-[7px] font-bold px-0.5 leading-tight rounded-bl"
-                        style="background:${slotCol};color:#fff;">${tierLabel}</span>` : ''}
+                ${item ? renderItemTierBadge(item) : ''}
               </div>
             </div>
             <span class="text-grey-900 text-sm font-medium">${name}</span>

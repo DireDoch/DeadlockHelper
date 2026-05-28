@@ -52,6 +52,13 @@ contextBridge.exposeInMainWorld('api', {
 
   getGameStatus: () =>
     ipcRenderer.invoke('game:get-status'),
+
+  // Player name cache (account_id → personaname, backed by electron-store with 7-day TTL)
+  getPlayerNames: (accountIds: number[]) =>
+    ipcRenderer.invoke('player-names:get-many', accountIds),
+
+  cachePlayerNames: (entries: Array<{ accountId: number; personaname: string; avatarmedium?: string }>) =>
+    ipcRenderer.invoke('player-names:set-many', entries),
   
   // Health status change listener
   onHealthStatusChange: (callback: (availability: number) => void) => {
@@ -140,6 +147,8 @@ declare global {
       onMatchEnded: (callback: (payload: { matchId: number | null; timestamp: number }) => void) => void;
       onGameProcessStatusChange: (callback: (payload: { isRunning: boolean; timestamp: number }) => void) => void;
       onGameStateChanged: (callback: (payload: { state: GameState; matchId?: number; timestamp: number }) => void) => void;
+      getPlayerNames: (accountIds: number[]) => Promise<Record<number, string | null>>;
+      cachePlayerNames: (entries: Array<{ accountId: number; personaname: string; avatarmedium?: string }>) => Promise<{ success: boolean }>;
     };
     spotify: {
       login: () => Promise<{ success: boolean; displayName?: string; error?: string }>;

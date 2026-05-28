@@ -75,6 +75,14 @@ const store = new Store<{
   },
 });
 
+// Player name cache — persists account_id → personaname across sessions (TTL 7 days)
+const playerNamesStore = new Store<{
+  names: Record<string, { personaname: string; avatarmedium?: string; cachedAt: number }>;
+}>({
+  name: 'player-names',
+  defaults: { names: {} },
+});
+
 // Read Steam profile data persisted by steam-logic.ts
 const steamProfileStore = new Store<{
   steamId64: string | null;
@@ -406,6 +414,29 @@ function setupIpcHandlers(): void {
       return cachedMatch.data;
     }
     return null;
+  });
+
+  // Batch read player names from cache (TTL = 7 days)
+  ipcMain.handle('player-names:get-many', async (_, accountIds: number[]) => {
+    const names = playerNamesStore.get('names');
+    const TTL = 7 * 24 * 3600 * 1000;
+    const result: Record<number, string | null> = {};
+    for (const id of accountIds) {
+      const entry = names[String(id)];
+      result[id] = (entry && Date.now() - entry.cachedAt < TTL) ? entry.personaname : null;
+    }
+    return result;
+  });
+
+  // Batch write player names to cache
+  ipcMain.handle('player-names:set-many', async (_, entries: Array<{ accountId: number; personaname: string; avatarmedium?: string }>) => {
+    const names = playerNamesStore.get('names');
+    const now = Date.now();
+    for (const e of entries) {
+      names[String(e.accountId)] = { personaname: e.personaname, avatarmedium: e.avatarmedium, cachedAt: now };
+    }
+    playerNamesStore.set('names', names);
+    return { success: true };
   });
 
   ipcMain.handle('game:get-status', async () => {
