@@ -26,6 +26,8 @@
 
 import { RANKS } from '../../../lib/constants/ranks';
 import { renderItemTierBadge } from '../../../lib/utils';
+import { MatchDetailController } from './matchDetail';
+import type { DetailContext, RichMatchMeta, HeroAsset as DetailHeroAsset, DetailItem } from './matchDetail/types';
 
 import rankInitiateUrl   from '../../../assets/icons/RankBadge/Initiator.png?url';
 import rankSeekerUrl     from '../../../assets/icons/RankBadge/Seekers.png?url';
@@ -273,6 +275,9 @@ export class ProfilPage {
   private metaLoadingSet: Set<number>          = new Set();
   private expandedMatches: Set<number>         = new Set();
 
+  // Expandable per-match analysis panel (Overview/Lane Stats/Items/Economy/Damage)
+  private matchDetail = new MatchDetailController();
+
   // player name cache (in-memory for this session, backed by electron-store)
   private playerNameMap: Map<number, string>   = new Map();
 
@@ -304,6 +309,7 @@ export class ProfilPage {
     this.allMatches      = [];
     this.matchMetaMap    = new Map();
     this.expandedMatches = new Set();
+    this.matchDetail.reset(); // clear per-match panel UI state (owner-relative defaults)
     this.movingAvgBadge  = null;
     this.deadlockProfile = null;
     this.render();
@@ -414,7 +420,13 @@ export class ProfilPage {
     await Promise.all(toFetch.map(async m => {
       try {
         const data = await fetch(`${API}/v1/matches/${m.match_id}/metadata`).then(r => r.ok ? r.json() : null);
-        if (data?.match_info) this.matchMetaMap.set(m.match_id, data.match_info as MatchMeta);
+        if (data?.match_info) {
+          // Retain the full match_info (rich stats[]/items[]/assigned_lane drive the detail panel),
+          // but drop the heavy player-vs-player damage_matrix blob — the detail tabs read totals
+          // from stats[] instead, so it is dead weight across 50 cached matches.
+          delete data.match_info.damage_matrix;
+          this.matchMetaMap.set(m.match_id, data.match_info as MatchMeta);
+        }
       } catch { /* ignore — row shows partial data */ }
       finally { this.metaLoadingSet.delete(m.match_id); }
     }));
@@ -782,6 +794,23 @@ export class ProfilPage {
       </div>`;
   }
 
+  /** Assemble the (state-less) context the Match Detail Panel needs for a given match. */
+  private buildDetailBase(matchId: number): Omit<DetailContext, 'state'> | null {
+    const meta  = this.matchMetaMap.get(matchId);
+    const entry = this.allMatches.find(m => m.match_id === matchId);
+    if (!meta || !entry) return null;
+    return {
+      matchId,
+      // matchMetaMap stores the full match_info at runtime — widen the narrow view.
+      meta: meta as unknown as RichMatchMeta,
+      ownerAccountId: entry.account_id,
+      gameMode: entry.game_mode,
+      heroMap: this.heroMap as unknown as Map<number, DetailHeroAsset>,
+      itemMap: this.itemMap as unknown as Map<number, DetailItem>,
+      playerNameMap: this.playerNameMap,
+    };
+  }
+
   private renderMatchRow(m: MatchEntry): string {
     const won       = m.match_result === m.player_team;
     const hero      = this.heroMap.get(m.hero_id);
@@ -809,13 +838,20 @@ export class ProfilPage {
       }
     }
 
-    const expandPanel = expanded ? `
-      <div class="border-t border-grey-700/50 px-6 py-4 bg-charcoal-100/30">
-        <div class="flex items-center gap-2 text-grey-500 text-sm">
-          <span class="opacity-50">⚙</span>
-          <span>Télémétrie détaillée — <span class="text-grey-400 italic">[Placeholder en attente de validation API]</span></span>
-        </div>
-      </div>` : '';
+    let expandPanel = '';
+    if (expanded) {
+      const base = this.buildDetailBase(m.match_id);
+      const inner = base
+        ? this.matchDetail.renderInner(base)
+        : `<div class="flex items-center gap-2 text-grey-500 text-sm py-6">
+             <span class="w-4 h-4 border-2 border-grey-600 border-t-dry-sage-400 rounded-full animate-spin"></span>
+             <span>Chargement de la télémétrie du match…</span>
+           </div>`;
+      expandPanel = `
+        <div class="border-t border-grey-700/50 px-6 py-4 bg-charcoal-100/30" data-detail-root data-match-id="${m.match_id}">
+          <div data-detail-content>${inner}</div>
+        </div>`;
+    }
 
     return `
       <div class="border-l-4 ${borderCls} border-b border-grey-700/40 last:border-b-0" data-match-id="${m.match_id}">
@@ -1061,5 +1097,8 @@ export class ProfilPage {
       this.refreshTabContent();
       this.fetchBatchMetadata(prev, this.visibleCount);
     });
+
+    // Bind the expandable match-detail panels (Overview/Lane Stats/Items/Economy/Damage).
+    this.matchDetail.attach(this.container, (matchId) => this.buildDetailBase(matchId));
   }
 }

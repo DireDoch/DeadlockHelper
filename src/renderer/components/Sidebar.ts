@@ -103,7 +103,7 @@ const NAV_ITEMS: NavConfig[] = [
     ],
   },
   { main: 'hero-stats', label: 'Heroes', icon: BugAntIcon },
-  { main: 'meta-items',        label: 'Items & Builds',    icon: CubeIcon },
+  { main: 'meta-items',        label: 'Items',             icon: CubeIcon },
   {
     main: 'leaderboards',
     label: 'Leaderboard',

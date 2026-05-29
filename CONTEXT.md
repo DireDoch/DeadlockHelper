@@ -50,3 +50,33 @@ The Skill Path tab shows the top 5 ability upgrade sequences by match count, fro
 
 ## navigate-hero Event
 A `CustomEvent` dispatched on the document root by HeroLibrary when a hero card is clicked. `detail: { heroId: number, heroData: HeroData }`. Caught by App, which mounts HeroDetailsPage with the hero data.
+
+## Match Detail Panel
+The expandable analysis panel revealed when a match row in the Profil match history is expanded (the `expand-match-btn` chevron). Contains a horizontal tab bar of exactly five per-match analysis tabs: **Overview**, **Lane Stats**, **Items**, **Economy**, **Damage**. (The screenshots' sixth "TL Score" tab and its embedded radar panels are explicitly out of scope — no API basis.) Data source is the full `GET /v1/matches/{match_id}/metadata` response (`CMsgMatchMetaDataContents`). Distinct from the Profil page's own tabs (Overview/Heroes/Matches).
+
+## The Amber Hand / The Sapphire Flame
+The two factions of a Deadlock match, used as section headers throughout the Match Detail Panel. `team` 0 = **THE AMBER HAND** (gold/amber accent); `team` 1 = **THE SAPPHIRE FLAME** (blue accent). Each header is suffixed with `(WINNER)` or `(LOSER)`, derived from `match_info.winning_team`. (These replace the spec's non-canonical "Hidden King / Archmother" labels.)
+
+## Item Timeline
+The chronological item-acquisition strip in the Match Detail Panel's Items tab. One card per **distinct shop item** (resolved through the items cache: requires `shop_image_webp` + `item_tier`), placed at its **first** `game_time_s`, deduplicated by `item_id`, and grouped into cards by minute. Items later sold (`sold_time_s != 0`) are shown but dimmed.
+
+## Ability Build (Match Detail)
+The intended skill-order section in the Items tab. The match metadata does **not** contain a player's actual in-match ability leveling order (verified: `ability_stats`/`book_rewards`/`hero_equips` empty, only a total `ability_points`). Best-effort only: when a player's `hero_build_id` is present, the planned order is read from that build's `ability_order.currency_changes` via `GET /v1/builds`; otherwise the section is hidden.
+
+## Match Overview Tab
+The match scoreboard: two stacked team sections, each headed by its [[the-amber-hand-the-sapphire-flame]] faction label + `(WINNER/LOSER)` and the team's cumulative `Kills/Deaths/Assists`. Six player rows per team, each showing: hero icon + Steam name (a link firing the existing `navigate-player` event to that player's Profil), a fixed 6×2 build grid (12 slots, empties shown; reuses the Profil [[item-timeline]] item filter), KDA ratio with numeric `(K+A)/D` below, CS (= player-level `last_hits`) with KP (`((K+A)/teamKills)*100`, formatted `55.1% KP`), and a Damage column = `player_damage` (hero damage). Item icons use the [[item-tooltip]] hover (I–IV).
+
+## Match Economy Tab
+Reduced to a single **team-comparison** block (the per-player subtabs and income breakdown were dropped as low-value/high-complexity). Four advantage bars reusing the Lane Stats bar visual: Net Worth (Σ`net_worth`), Total CS (Σ`last_hits`), Denies (Σ`gold_denied` — denied **souls**, not the deny *count*), Death Loss (Σ`gold_death_loss`). Leader side bolded.
+
+## Match Damage Tab
+The richest tab. A team-comparison block (5 advantage bars: Hero Damage=`player_damage`, Hero Healing=`player_healing`, Obj Damage=`boss_damage`, Damage Taken=`player_damage_taken`, Mitigated=`damage_mitigated`); a **unified per-player chart** with four subtabs (Hero Damage, Total Damage=`player_damage+creep_damage+neutral_damage+boss_damage`, Hero Healing, Obj Damage), each rendering all players in one sorted, team-colored horizontal bar list with absolute value + `%` contribution (no split blocks); and a selected-player detail panel (default = profile owner, click a bar to switch): **Damage Breakdown** (Heroes/Creeps/Neutrals/Objectives + DMG/min + Team Share + DMG/Death), **Accuracy** (`shots_hit`/`shots_missed`), **Survivability** (deaths/`player_damage_taken`/`damage_mitigated`), **Power** (`weapon_power`/`tech_power`/`max_health`). All from the final `stats[]` snapshot — `damage_matrix` is not needed.
+
+## Item Tooltip
+The hover tooltip on any item icon in the Match Detail Panel. Shows the item name, its stat properties (from the items cache), and a Tier badge on the **I–IV** scale via the shared `renderItemTierBadge` util. (Deadlock has four item tiers; the spec's "Tier I–VI" does not exist.)
+
+## Lane Color
+A Normal 6v6 match has three lanes; `assigned_lane` values map `1` = **blue**, `4` = **yellow**, `6` = **green** (already encoded in `types/index.ts`), each lane a 2v2. The lane filter is built **data-driven** from the distinct `assigned_lane` values actually present in a match (1–3), so other modes (e.g. Street Brawl 4v4) degrade gracefully rather than assuming three. Lane color tints the hero-icon borders in the Lane Stats hero bar.
+
+## Match Lane Stats Tab
+Compares an arbitrary **selected set of left players vs a selected set of right players** (asymmetric N-vs-M allowed) at a chosen time snapshot. The selector buttons are generated from the match's actual `stats[]` `time_stamp_s` values (rounded to minutes — typically 3/6/9/12/15/20/25/…/end, no 0m); default = final snapshot. On open, the profile player's [[lane-color]] is preselected (their 2v2). Lane-color buttons are presets that replace the selection with that lane's players (both teams); manual hero toggles refine it. Each metric reads the cumulative `stats[]` value at the selected snapshot: Kills=`kills`, Souls=`net_worth`, Last Hits=`creep_kills`, Denies=`denies` (count), Damage=`player_damage`, Obj Damage=`boss_damage`, Shots Hit %=`shots_hit/(shots_hit+shots_missed)`, Level=`level`. The leading side per metric is bolded with an advantage gauge.
