@@ -132,6 +132,16 @@ export class App {
       }
     });
 
+    // Leaderboard main page → redirect to rankings sub-page
+    document.addEventListener('navigate-to-subpage', (e: Event) => {
+      const { page } = (e as CustomEvent<{ page: SubPage }>).detail;
+      if (this.contentContainer) {
+        this.currentPage = page;
+        this.renderPage(page);
+        this.sidebar.navigateTo(page);
+      }
+    });
+
     // Player name click in match history → load that player's profile
     document.addEventListener('navigate-player', (e: Event) => {
       const { accountId } = (e as CustomEvent<{ accountId: number }>).detail;
