@@ -96,6 +96,20 @@ contextBridge.exposeInMainWorld('api', {
       callback(payload);
     });
   },
+
+  // Overlay settings (read/write from Configuration page)
+  getOverlaySettings: () =>
+    ipcRenderer.invoke('overlay:get-settings'),
+
+  updateOverlaySettings: (settings: any) =>
+    ipcRenderer.invoke('overlay:update-settings', settings),
+
+  // Launch Deadlock via Steam protocol (respects saved launch options)
+  launchDeadlock: () =>
+    ipcRenderer.invoke('game:launch-deadlock'),
+
+  // Runtime platform — exposed so renderers can detect OS without Node.js globals
+  platform: process.platform,
 });
 
 contextBridge.exposeInMainWorld('spotify', {

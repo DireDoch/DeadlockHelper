@@ -18,14 +18,20 @@ export interface DeadlockProcessStatus {
 
 export interface ActiveMatchResult {
   matchId: number | null;
+  durationS: number | null;
+  playerHeroId: number | null;
+  enemyHeroIds: number[];
 }
 
 interface ActiveMatchPlayer {
   account_id?: number | null;
+  hero_id?: number | null;
+  team?: number | null;
 }
 
 interface ActiveMatchEntry {
   match_id?: number | null;
+  duration_s?: number | null;
   players?: ActiveMatchPlayer[];
 }
 
@@ -92,20 +98,28 @@ export async function findActiveMatchByAccountId(
       },
     );
 
-    if (!response.ok) return { matchId: null };
+    if (!response.ok) return { matchId: null, durationS: null, playerHeroId: null, enemyHeroIds: [] };
 
     const data = (await response.json()) as ActiveMatchEntry[];
-    if (!Array.isArray(data)) return { matchId: null };
+    if (!Array.isArray(data)) return { matchId: null, durationS: null, playerHeroId: null, enemyHeroIds: [] };
 
     for (const match of data) {
       const matchId = match.match_id;
       if (!matchId || !Array.isArray(match.players)) continue;
 
-      const hasPlayer = match.players.some((player) => player.account_id === accountId);
-      if (hasPlayer) return { matchId };
+      const me = match.players.find((p) => p.account_id === accountId);
+      if (!me) continue;
+
+      const myTeam = me.team ?? -1;
+      const playerHeroId = me.hero_id ?? null;
+      const enemyHeroIds = match.players
+        .filter((p) => p.team !== myTeam && p.hero_id != null)
+        .map((p) => p.hero_id as number);
+
+      return { matchId, durationS: match.duration_s ?? null, playerHeroId, enemyHeroIds };
     }
 
-    return { matchId: null };
+    return { matchId: null, durationS: null, playerHeroId: null, enemyHeroIds: [] };
   } catch {
     return { matchId: null };
   } finally {

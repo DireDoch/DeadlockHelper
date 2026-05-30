@@ -3,24 +3,44 @@
  */
 
 import { UserProfile } from '../../componentsUI/UserProfile';
+import type { OverlaySettings } from '../../../lib/types';
 
 type SteamProfile = { steamId64: string; avatarUrl?: string; personaname?: string } | null;
+
+const DEFAULT_OVERLAY: OverlaySettings = {
+  corner: 'center-right',
+  opacity: 0.25,
+  logPath: '',
+  showSoulsPerMin: true,
+  showMidBossTimer: true,
+  showUrnTimer: true,
+  showItemSuggestions: true,
+};
 
 export class ConfigurationPage {
   private container: HTMLElement | null = null;
   private demoModeEnabled = false;
   private steamProfile: SteamProfile = null;
+  private overlaySettings: OverlaySettings = { ...DEFAULT_OVERLAY };
 
   mount(container: HTMLElement): void {
     this.container = container;
     this.container.addEventListener('click', this.boundHandleContainerClick);
-    Promise.all([this.loadDemoModeState(), this.loadSteamProfile()]).then(() => this.render());
+    Promise.all([
+      this.loadDemoModeState(),
+      this.loadSteamProfile(),
+      this.loadOverlaySettings(),
+    ]).then(() => this.render());
   }
 
   /** Called when Steam profile is updated (e.g. after login) so the page re-renders with new data. */
   refresh(): void {
     if (!this.container) return;
-    Promise.all([this.loadDemoModeState(), this.loadSteamProfile()]).then(() => this.render());
+    Promise.all([
+      this.loadDemoModeState(),
+      this.loadSteamProfile(),
+      this.loadOverlaySettings(),
+    ]).then(() => this.render());
   }
 
   private boundHandleContainerClick = (e: Event): void => {
@@ -39,6 +59,23 @@ export class ConfigurationPage {
       }
     } catch (error) {
       console.error('Failed to load Steam profile:', error);
+    }
+  }
+
+  private async loadOverlaySettings(): Promise<void> {
+    try {
+      const s = await (window.api as any).getOverlaySettings?.();
+      if (s) this.overlaySettings = s;
+    } catch {
+      // not yet wired — use defaults
+    }
+  }
+
+  private async saveOverlaySettings(): Promise<void> {
+    try {
+      await (window.api as any).updateOverlaySettings?.(this.overlaySettings);
+    } catch {
+      // ignore
     }
   }
 
@@ -170,10 +207,88 @@ export class ConfigurationPage {
             </div>
           </div>
           
-          <!-- Other settings placeholder -->
+          <!-- Overlay In-Game -->
           <div class="bg-charcoal-200 rounded-lg p-6 border border-grey-600">
-            <p class="text-grey-400">
-              Autres paramètres à venir...
+            <h3 class="text-lg font-semibold text-white mb-1">Overlay In-Game</h3>
+            <p class="text-sm text-grey-400 mb-4">
+              Apparaît automatiquement quand Deadlock est lancé.
+              Requiert <code class="text-frosted-mint-400">-condebug</code> dans les launch options Steam
+              et le mode <strong class="text-white">Borderless Windowed</strong> dans le jeu.
+            </p>
+
+            <!-- Corner -->
+            <div class="mb-4">
+              <label class="block text-sm text-grey-300 mb-2">Position</label>
+              <div class="grid grid-cols-2 gap-2 w-48">
+                ${(['center-right','top-right','top-left','bottom-right'] as const).map((c) => `
+                  <button
+                    data-ov-corner="${c}"
+                    class="px-3 py-1.5 rounded text-xs border transition-colors ${
+                      this.overlaySettings.corner === c
+                        ? 'border-frosted-mint-500 text-frosted-mint-400 bg-frosted-mint-500/10'
+                        : 'border-grey-600 text-grey-400 hover:border-grey-400'
+                    }"
+                  >${c.replace('-', ' ')}</button>
+                `).join('')}
+              </div>
+            </div>
+
+            <!-- Opacity -->
+            <div class="mb-4">
+              <label class="block text-sm text-grey-300 mb-2">
+                Opacité du fond — <span id="ov-opacity-label">${Math.round(this.overlaySettings.opacity * 100)}%</span>
+              </label>
+              <input
+                id="ov-opacity-slider"
+                type="range" min="20" max="90" step="5"
+                value="${Math.round(this.overlaySettings.opacity * 100)}"
+                class="w-48 accent-frosted-mint-500"
+              />
+            </div>
+
+            <!-- Log path -->
+            <div class="mb-4">
+              <label class="block text-sm text-grey-300 mb-1">Chemin console.log Deadlock</label>
+              <p class="text-xs text-grey-500 mb-2">Laissez vide pour l'auto-détection (Linux / Windows).</p>
+              <input
+                id="ov-log-path"
+                type="text"
+                value="${this.overlaySettings.logPath}"
+                placeholder="Auto-détecté…"
+                class="w-full bg-charcoal-300 border border-grey-600 rounded px-3 py-2 text-sm text-white placeholder-grey-600 focus:outline-none focus:border-frosted-mint-500"
+              />
+            </div>
+
+            <!-- Component toggles -->
+            <div class="mb-4">
+              <label class="block text-sm text-grey-300 mb-2">Composants affichés</label>
+              <div class="flex flex-col gap-2">
+                ${([
+                  ['showSoulsPerMin',      'Souls / min (placeholder)'],
+                  ['showMidBossTimer',     'Mid Boss Timer'],
+                  ['showUrnTimer',         'Urn Timer'],
+                  ['showItemSuggestions',  'Item Suggestions'],
+                ] as const).map(([key, label]) => `
+                  <label class="flex items-center gap-3 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      data-ov-toggle="${key}"
+                      ${this.overlaySettings[key] ? 'checked' : ''}
+                      class="w-4 h-4 accent-frosted-mint-500 cursor-pointer"
+                    />
+                    <span class="text-sm text-grey-300">${label}</span>
+                  </label>
+                `).join('')}
+              </div>
+            </div>
+
+            <!-- OS info -->
+            <p class="text-xs text-grey-600">
+              OS détecté : <span class="text-grey-400">${
+                (window.api as any).platform === 'linux' ? 'Linux (par défaut)'
+                : (window.api as any).platform === 'win32' ? 'Windows'
+                : (window.api as any).platform ?? 'Inconnu'
+              }</span>
             </p>
           </div>
         </div>
@@ -190,6 +305,42 @@ export class ConfigurationPage {
         this.toggleDemoMode(!this.demoModeEnabled);
       });
     }
+
+    // Overlay: corner buttons
+    document.querySelectorAll<HTMLButtonElement>('[data-ov-corner]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        this.overlaySettings.corner = btn.dataset.ovCorner as OverlaySettings['corner'];
+        this.saveOverlaySettings();
+        this.render();
+      });
+    });
+
+    // Overlay: opacity slider
+    const slider = document.getElementById('ov-opacity-slider') as HTMLInputElement | null;
+    const label = document.getElementById('ov-opacity-label');
+    slider?.addEventListener('input', () => {
+      const val = Number(slider.value);
+      if (label) label.textContent = `${val}%`;
+      this.overlaySettings.opacity = val / 100;
+      this.saveOverlaySettings();
+    });
+
+    // Overlay: log path
+    const logInput = document.getElementById('ov-log-path') as HTMLInputElement | null;
+    logInput?.addEventListener('change', () => {
+      this.overlaySettings.logPath = logInput.value.trim();
+      this.saveOverlaySettings();
+    });
+
+    // Overlay: component toggles
+    document.querySelectorAll<HTMLInputElement>('[data-ov-toggle]').forEach((cb) => {
+      cb.addEventListener('change', () => {
+        const key = cb.dataset.ovToggle as keyof OverlaySettings;
+        (this.overlaySettings as any)[key] = cb.checked;
+        this.saveOverlaySettings();
+      });
+    });
+
     // Steam buttons are handled via delegation in boundHandleContainerClick (mount)
   }
 

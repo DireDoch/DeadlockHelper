@@ -25,7 +25,6 @@ const config: ForgeConfig = {
       // If you are familiar with Vite configuration, it will look really familiar.
       build: [
         {
-          // `entry` is just an alias for `build.lib.entry` in the corresponding file of `config`.
           entry: 'src/main/main.ts',
           config: 'vite.main.config.ts',
           target: 'main',
@@ -35,10 +34,19 @@ const config: ForgeConfig = {
           config: 'vite.preload.config.ts',
           target: 'preload',
         },
+        {
+          entry: 'src/preload/overlay-preload.ts',
+          config: 'vite.overlay-preload.config.ts',
+          target: 'preload',
+        },
       ],
       renderer: [
         {
           name: 'main_window',
+          config: 'vite.renderer.config.mjs',
+        },
+        {
+          name: 'overlay_window',
           config: 'vite.renderer.config.mjs',
         },
       ],

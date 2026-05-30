@@ -307,6 +307,36 @@ export interface ItemData {
   [key: string]: any;
 }
 
+// ── Overlay types ─────────────────────────────────────────────────────────────
+
+export interface OverlaySettings {
+  corner: 'top-right' | 'top-left' | 'bottom-right' | 'bottom-left' | 'center-right';
+  opacity: number; // 0.2–0.9
+  logPath: string;
+  showSoulsPerMin: boolean;
+  showMidBossTimer: boolean;
+  showUrnTimer: boolean;
+  showItemSuggestions: boolean;
+  // Last position saved after a user drag (takes priority over corner on next launch)
+  lastX?: number;
+  lastY?: number;
+}
+
+export interface OverlayMatchData {
+  matchId: number;
+  startWallTime: number; // Date.now() - duration_s * 1000
+  playerHeroId: number;
+  playerAccountId: number;
+  enemyHeroIds: number[];
+}
+
+export interface OverlayItemSuggestion {
+  itemId: number;
+  name: string;
+  imageUrl: string | null;
+  winRate: number; // 0–100
+}
+
 export interface AbilityOrderStats {
   abilities: number[];
   wins: number;

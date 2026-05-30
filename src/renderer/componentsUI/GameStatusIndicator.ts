@@ -39,18 +39,33 @@ function getStatusUi(status: GameStatus): { label: string; classes: string; dotC
 
 function renderContent(status: GameStatus): string {
   const ui = getStatusUi(status);
+  const isClosed = status.state === 'GAME_CLOSED' || (!status.isRunning && !status.inMatch);
 
-  return `
-    <button
-      type="button"
+  const statusBadge = `
+    <div
       class="inline-flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-semibold shadow-sm ${ui.classes}"
       title="${ui.label}"
-      aria-label="${ui.label}"
     >
       <span class="w-2 h-2 rounded-full ${ui.dotClasses}"></span>
       <span>${ui.label}</span>
-    </button>
+    </div>
   `;
+
+  const launchBtn = isClosed ? `
+    <button
+      id="launch-deadlock-btn"
+      type="button"
+      class="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-frosted-mint-500/60 bg-frosted-mint-500/15 text-frosted-mint-400 text-xs font-bold shadow-md hover:bg-frosted-mint-500/25 hover:border-frosted-mint-400 transition-all duration-150 cursor-pointer"
+      title="Lancer Deadlock avec les options configurées"
+    >
+      <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd"/>
+      </svg>
+      Lancer Deadlock
+    </button>
+  ` : '';
+
+  return `<div class="flex items-center gap-2">${launchBtn}${statusBadge}</div>`;
 }
 
 async function renderToContainer(): Promise<void> {
@@ -76,6 +91,25 @@ async function renderToContainer(): Promise<void> {
   container.innerHTML = renderContent(status);
 }
 
+function bindLaunchButton(): void {
+  const btn = document.getElementById('launch-deadlock-btn');
+  if (!btn) return;
+  btn.addEventListener('click', async () => {
+    btn.setAttribute('disabled', 'true');
+    btn.classList.add('opacity-60');
+    try {
+      await (window.api as any).launchDeadlock?.();
+    } catch (e) {
+      console.error('[GameStatus] Failed to launch Deadlock:', e);
+    }
+    // Re-enable after 3s (Steam needs time to open)
+    setTimeout(() => {
+      btn.removeAttribute('disabled');
+      btn.classList.remove('opacity-60');
+    }, 3000);
+  });
+}
+
 export const GameStatusIndicator = {
   containerId,
 
@@ -83,10 +117,10 @@ export const GameStatusIndicator = {
     const container = document.getElementById(this.containerId);
     if (!container) return;
     container.innerHTML = '<div class="text-xs text-grey-400">...</div>';
-    renderToContainer();
+    renderToContainer().then(() => bindLaunchButton());
   },
 
   refresh(): void {
-    renderToContainer();
+    renderToContainer().then(() => bindLaunchButton());
   },
 };

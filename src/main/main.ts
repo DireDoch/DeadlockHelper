@@ -1,5 +1,7 @@
 import 'dotenv/config';
-import { app, BrowserWindow, ipcMain } from 'electron';
+import { app, BrowserWindow, ipcMain, shell } from 'electron';
+
+
 import path from 'node:path';
 import Store from 'electron-store';
 import { setupSteamHandlers } from './steam-logic';
@@ -10,6 +12,14 @@ import {
   getDeadlockProcessStatus,
   steamId64ToAccountId,
 } from './deadlock-detector';
+import {
+  createOverlayWindow,
+  destroyOverlayWindow,
+  sendToOverlay,
+  getOverlaySettings,
+  setupOverlayIpcHandlers,
+} from './overlay-window';
+import { LogWatcher } from './log-watcher';
 import started from 'electron-squirrel-startup';
 import type { ApiHealthStatus, CachedMatchData, MatchData, GameState } from '../lib/types';
 
@@ -103,6 +113,9 @@ let lastGameRunning = false;
 let lastKnownMatchId: number | null = null;
 let lastApiCheckAt = 0;
 let lastGameState: GameState = 'GAME_CLOSED';
+
+// Log watcher instance for condebug overlay support
+const logWatcher = new LogWatcher();
 
 /**
  * Record API call result and update availability
@@ -243,6 +256,8 @@ async function checkDeadlockAndMatchStatus(): Promise<void> {
     if (wasRunning) {
       emitGameProcessStatus(false);
       emitMatchEnded(lastKnownMatchId);
+      destroyOverlayWindow();
+      logWatcher.stop();
     }
     lastGameRunning = false;
     lastKnownMatchId = null;
@@ -256,6 +271,18 @@ async function checkDeadlockAndMatchStatus(): Promise<void> {
 
   if (!wasRunning) {
     emitGameProcessStatus(true);
+    console.log('[Main] Deadlock process detected — creating overlay window');
+    // Show overlay immediately when game is detected (debug + waiting state)
+    const preloadDir = path.join(app.getAppPath(), '.vite/build');
+    createOverlayWindow(preloadDir);
+    // Start log watcher using saved or auto-detected path
+    const overlaySettings = getOverlaySettings();
+    const logPath = overlaySettings.logPath || LogWatcher.detectLogPath();
+    logWatcher.setLogPath(logPath);
+    logWatcher.on('game-started', (wallTime: number) => {
+      // Log watcher fires only if API hasn't already set the start time
+      sendToOverlay('overlay:log-game-started', wallTime);
+    });
   }
   lastGameRunning = true;
 
@@ -275,7 +302,7 @@ async function checkDeadlockAndMatchStatus(): Promise<void> {
   const accountId = steamId64ToAccountId(steamId64);
   if (accountId === null) return;
 
-  const { matchId } = await findActiveMatchByAccountId(accountId);
+  const { matchId, durationS, playerHeroId, enemyHeroIds } = await findActiveMatchByAccountId(accountId);
 
   if (matchId !== null && matchId !== lastKnownMatchId) {
     lastKnownMatchId = matchId;
@@ -284,12 +311,26 @@ async function checkDeadlockAndMatchStatus(): Promise<void> {
       lastGameState = 'GAME_IN_MATCH';
       emitGameStateChanged('GAME_IN_MATCH', matchId);
     }
+    // Push full match context to overlay
+    const startWallTime = durationS != null
+      ? Date.now() - durationS * 1000
+      : Date.now();
+    console.log('[Main] Sending overlay:match-data', { matchId, durationS, playerHeroId, enemyHeroIds });
+    sendToOverlay('overlay:match-data', {
+      matchId,
+      startWallTime,
+      playerHeroId: playerHeroId ?? 0,
+      playerAccountId: accountId,
+      enemyHeroIds,
+    });
     return;
   }
 
   if (matchId === null && lastKnownMatchId !== null) {
     emitMatchEnded(lastKnownMatchId);
     lastKnownMatchId = null;
+    logWatcher.resetGameState();
+    sendToOverlay('overlay:match-ended');
     if (lastGameState !== 'GAME_MENU') {
       lastGameState = 'GAME_MENU';
       emitGameStateChanged('GAME_MENU');
@@ -454,6 +495,17 @@ function setupIpcHandlers(): void {
 
   // Setup Spotify handlers
   setupSpotifyHandlers();
+
+  // Setup overlay handlers
+  setupOverlayIpcHandlers();
+
+  // Launch Deadlock via Steam protocol (respects user's saved launch options)
+  // Steam App ID 1422450 = Deadlock
+  ipcMain.handle('game:launch-deadlock', async () => {
+    console.log('[Main] Launching Deadlock via steam://rungameid/1422450');
+    await shell.openExternal('steam://rungameid/1422450');
+    return { success: true };
+  });
 }
 
 // This method will be called when Electron has finished

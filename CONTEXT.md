@@ -80,3 +80,24 @@ A Normal 6v6 match has three lanes; `assigned_lane` values map `1` = **blue**, `
 
 ## Match Lane Stats Tab
 Compares an arbitrary **selected set of left players vs a selected set of right players** (asymmetric N-vs-M allowed) at a chosen time snapshot. The selector buttons are generated from the match's actual `stats[]` `time_stamp_s` values (rounded to minutes — typically 3/6/9/12/15/20/25/…/end, no 0m); default = final snapshot. On open, the profile player's [[lane-color]] is preselected (their 2v2). Lane-color buttons are presets that replace the selection with that lane's players (both teams); manual hero toggles refine it. Each metric reads the cumulative `stats[]` value at the selected snapshot: Kills=`kills`, Souls=`net_worth`, Last Hits=`creep_kills`, Denies=`denies` (count), Damage=`player_damage`, Obj Damage=`boss_damage`, Shots Hit %=`shots_hit/(shots_hit+shots_missed)`, Level=`level`. The leading side per metric is bolded with an advantage gauge.
+
+## Game Overlay Window
+A second Electron `BrowserWindow` (`overlayWindow`) created in `main.ts` when `GAME_IN_MATCH` is detected and hidden/destroyed at `GAME_MENU`/`GAME_CLOSED`. Properties: `frame: false`, `transparent: true`, `alwaysOnTop: true`, `setIgnoreMouseEvents(true)` except on interactive zones. Rendered by a dedicated `overlay.html` in vanilla TypeScript. Requires the game to run in **Borderless Windowed** mode on Linux (fullscreen exclusive blocks Electron's `alwaysOnTop`). See [[mid-boss-timer]], [[urn-timer]], [[souls-per-min]], [[item-suggestions]].
+
+## Game Clock
+A local wall-clock timer started in the overlay renderer when `ChangeGameState: InProgress` is detected in the Deadlock `console.log` file (requires `-condebug` Steam launch option). Game clock = `Date.now()` at that event − current `Date.now()`. All time-based overlay components derive from this single clock. If the log event is missed (app started mid-game), the clock starts from overlay init time as an approximation.
+
+## Mid Boss Timer
+Overlay component showing the Mid Boss respawn countdown. States: **Spawned** (boss alive, shown at game start and after each respawn) → countdown triggered manually by the player pressing a button when they see the boss die in-game. Respawn cycle: 7 min after 1st death, 6 min after 2nd, 5 min after 3rd and all subsequent. Boss death detection is not available from any VAC-safe source; the manual trigger is the canonical solution. See [[adr-0003]].
+
+## Urn Timer
+Overlay component showing the countdown to the next Soul Urn spawn. First spawn at game clock 12:00. Subsequent spawns every 6 minutes (18:00, 24:00, 30:00…). Lane alternation is fixed and deterministic: **Yellow lane** at 12min, **Green lane** at 18min, alternating. The 12-second descent animation is included in the countdown (urn is collectible 12s after the displayed spawn time). Edge case: if the urn is picked up before its cycle ends but delivered after the next theoretical spawn time, the next spawn skips to the following 6-minute slot — this is tracked locally by comparing delivery time to the schedule.
+
+## Souls Per Min
+Overlay component displaying the player's souls-per-minute farming rate vs. the rank/hero average. **Currently a placeholder** — displays `-- SPM` with a "Donnée indisponible" label. No VAC-safe live data source for soul counts exists (not in `console.log`, not in the active match API). Reserved for a future iteration if a live source becomes available.
+
+## Item Suggestions
+Overlay component showing the top 3 recommended items against the current enemy team composition. Source: `GET /v1/analytics/item-stats?hero_ids={player_hero}&enemy_hero_ids={enemy_hero_ids}` — returns items ranked by winrate when facing those specific heroes. Labeled "vs composition ennemie" to be transparent that suggestions are not filtered by the player's current inventory (inventory is unavailable live).
+
+## Condebug Log Path
+The file path to Deadlock's `console.log`, produced when `-condebug` is added to Steam launch options. Auto-detected by parsing `libraryfolders.vdf` in standard Steam locations: Linux priority (`~/.local/share/Steam/steamapps/`), Windows fallback (`C:\Program Files (x86)\Steam\steamapps\`). The resolved path follows the pattern `{library}/steamapps/common/Deadlock/game/citadel/console.log`. User can override via the Settings page if auto-detection fails.
