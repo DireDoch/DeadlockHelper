@@ -133,4 +133,96 @@ Ce workaround est documenté comme nécessaire pour KDE Plasma + Wayland.
 | Souls/min via OCR (Tesseract lisant le HUD) | Élevée | Permettrait d'afficher les vraies SPM |
 | Mid Boss detection via log memory reading | Très élevée + risque VAC | Non recommandé |
 | Configurer NVIDIA PRIME pour XWayland | Système — hors app | Débloquerait `setPosition()` |
-| KWin window rules pour épingler la position | Configuration utilisateur | Alternatif à la drag handle |
+| ~~KWin window rules pour épingler la position~~ | — | **✅ Implémenté — voir §7** (z-order, pas position) |
+
+---
+
+## 7. BYPASS #1 implémenté — Règle KWin `keepAbove` (correctif KDE/Wayland)
+
+Le **vrai problème restant** (overlay qui passe *derrière* le jeu au lancement — un problème de **z-order**, pas de position) est désormais corrigé par une **règle de fenêtre KWin** forçant `keepAbove`, installable depuis la page Configuration.
+
+### 7.1 Plan initial « 3 bypasses » — ce qui a été rejeté (et pourquoi)
+
+Un plan généré (« Principal Engineer ») proposait 3 contournements. Confronté à l'environnement réel (CachyOS + **Plasma/KWin 6.6.5** + Wayland), l'essentiel ne tenait pas :
+
+| Proposé | Réalité vérifiée sur la machine | Verdict |
+|---|---|---|
+| « Suite de détection d'environnement déjà en place » | Inexistante — `main.ts` ne testait que `!== 'darwin'`. | **À construire** (`desktop-environment.ts`). |
+| BYPASS #2 : Python + `gtk-layer-shell` (`zwlr_layer_shell_v1`) | **KWin n'implémente pas** `wlr-layer-shell` (protocole wlroots : Hyprland/sway uniquement). Et le « moteur Python » est un CLI *one-shot*, pas un démon. | **Abandonné** — inopérant sur KWin. |
+| BYPASS #4 : `dbus-next` « pousse des propriétés de fenêtre » sur KWin | Introspection de `org.kde.KWin` : **aucune méthode** pour énumérer les fenêtres ou poser `keepAbove`. Seul `/Scripting loadScript` existe (JS, fragile, API KF5≠KF6). Redondant avec la règle. | **Abandonné.** |
+| `qdbus org.kde.KWin /KWin reconfigure` | `qdbus` **absent** ; c'est `qdbus6` sur Plasma 6. | Corrigé (`qdbus6`, fallback `qdbus` puis `busctl`). |
+| Match `wmclass: 'deadlockhelper'` | Aucune `app_id` custom émise ; l'`app_id` est **partagée** par toutes les fenêtres du process → la règle frapperait aussi la **fenêtre principale**. | Remplacé par un **match sur le titre**. |
+| Forcer `acceptfocus=false` + `fsplevel=4` | Résolvent le problème *inverse* (overlay volant le focus) ; `acceptfocus=false` risque de casser le drag handle / clic Mid Boss. | **Retirés** — `keepAbove` seul. |
+
+### 7.2 Conception retenue
+
+**Deux règles** sont installées ensemble par le bouton (voir §7.7 pour le *pourquoi* de la 2ᵉ) :
+
+| Décision | Choix |
+|---|---|
+| Portée | **KDE/KWin Wayland uniquement** (détecté ; sinon le bloc UI est masqué) |
+| Mécanisme | Règles statiques dans `~/.config/kwinrulesrc` + `qdbus6 … reconfigure` |
+| Règle 1 — overlay | Match **titre** `Deadlock Overlay` (`titlematch=2`) → force `keepabove=true` (`aboverule=2`). Le titre est par-fenêtre, n'affecte pas la fenêtre principale. |
+| Règle 2 — jeu | Match **wmclass** `steam_app_1422450` (`wmclassmatch=2`) → force `fullscreen=false` (`fullscreenrule=2`). Empêche KWin de promouvoir Deadlock en couche `Active` (qui masquerait l'overlay). |
+| Propriétés écartées | `acceptfocus=false` + `fsplevel=4` (cassent le drag/clic, résolvent le mauvais problème) |
+| Déclenchement | **Bouton** « Appliquer le correctif » dans Configuration (consentement explicite, réversible) |
+| Sûreté | Sauvegarde `kwinrulesrc.deadlockhelper.bak` avant 1ʳᵉ écriture ; écriture atomique ; `id` de groupes fixes (`deadlockhelper-overlay`, `deadlockhelper-game`) → idempotent + suppression triviale |
+
+### 7.3 Fichiers
+
+```
+src/main/desktop-environment.ts   ← détection OS / DE / Wayland (prérequis manquant)
+src/main/kwin-overlay-rule.ts      ← lecture/écriture kwinrulesrc, install/remove/status, reconfigure
+src/main/overlay-window.ts         ← (modif) title: 'Deadlock Overlay' explicite = clé de match
+src/main/main.ts                   ← (modif) 3 handlers IPC : kwin-fix-status / -apply / -remove
+src/preload/preload.ts             ← (modif) expose getKwinOverlayFixStatus / apply / remove
+src/renderer/pages/Parametres/Configuration.ts ← (modif) bloc UI + boutons (visible si KDE+Wayland)
+```
+
+### 7.4 Règles générées (extrait de `kwinrulesrc`)
+
+```ini
+[General]
+count=2
+rules=deadlockhelper-overlay,deadlockhelper-game
+
+[deadlockhelper-overlay]
+Description=DeadlockHelper Overlay keep-above (auto-generated)
+above=true
+aboverule=2          ; 2 = Force
+title=Deadlock Overlay
+titlematch=2         ; 2 = Substring
+
+[deadlockhelper-game]
+Description=DeadlockHelper — Deadlock windowed, no fullscreen layer (auto-generated)
+wmclass=steam_app_1422450
+wmclassmatch=2
+fullscreen=false
+fullscreenrule=2     ; 2 = Force
+```
+
+> Encodages KWin : `*match` → 0=Unimportant 1=Exact **2=Substring** 3=RegExp ; `*rule` → 1=DontAffect **2=Force** 3=Apply 4=Remember…
+
+### 7.5 Utilisation
+
+1. Lancer Deadlock en **Borderless Windowed** (toujours requis — voir §4).
+2. Page **Configuration → Overlay In-Game**, cliquer **« Appliquer le correctif »** (bloc visible uniquement sur KDE+Wayland).
+3. La règle est écrite et KWin la recharge instantanément (`reconfigure`). **« Retirer »** la supprime proprement.
+
+### 7.6 Vérifié
+
+- ✅ Build : `main.ts`, modules KWin et `Configuration.ts` compilent (esbuild, externals comme electron-forge) ; preload via Vite.
+- ✅ Détection : `applicable=true` sur Plasma 6.6.5 / Wayland.
+- ✅ Logique (test temp `XDG_CONFIG_HOME`) : install écrit **les 2 groupes** + préserve une règle utilisateur existante, crée la sauvegarde ; 2ᵉ install **idempotente** (un seul exemplaire de chaque groupe) ; remove restaure l'état initial.
+- ⏳ **Reste à valider manuellement** : effet visuel au-dessus d'une vraie partie en **Borderless** (nécessite Deadlock lancé). Vérifier aussi que `fullscreen=No` ne dégrade pas le rendu du jeu.
+
+### 7.7 Pourquoi une 2ᵉ règle ? — couches de stacking KWin
+
+Symptôme observé : avec `keepAbove` seul, l'overlay est visible en **ALT+TAB** mais **disparaît quand on clique sur l'onglet du jeu**.
+
+Cause : KWin empile les fenêtres par **couches** — `Normal` < `Dock` (panel) < **`Above`** (keepAbove) < … < **`Active`** (fenêtre plein écran *active*). Tant que Deadlock n'est pas la fenêtre active plein écran, l'overlay (`Above`) passe dessus. Mais dès que le jeu devient **actif en plein écran**, KWin le promeut en couche **`Active`, au-dessus de `Above`** → l'overlay est masqué. **Aucune règle `keepAbove` ne peut battre une fenêtre plein écran active** (par conception ; confirmé sur les forums KDE/Ardour).
+
+Solution : forcer `fullscreen=No` sur la fenêtre du jeu (Règle 2) → Deadlock reste en couche `Normal`, l'overlay `Above` gagne, **même quand le jeu est focus**. Nécessite **Borderless/Windowed** ; le plein écran *exclusif* reste hors de portée sur Wayland.
+
+> `wmclass` de Deadlock relevé via `qdbus6 org.kde.KWin /KWin queryWindowInfo` (jeu lancé en Windowed) :
+> `resourceClass = steam_app_1422450`, `caption = Deadlock`, `fullscreen = false`, `layer = 2` (Normal).

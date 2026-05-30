@@ -104,6 +104,16 @@ contextBridge.exposeInMainWorld('api', {
   updateOverlaySettings: (settings: any) =>
     ipcRenderer.invoke('overlay:update-settings', settings),
 
+  // KWin "keep overlay above the game" fix (KDE Plasma + Wayland only)
+  getKwinOverlayFixStatus: () =>
+    ipcRenderer.invoke('overlay:kwin-fix-status'),
+
+  applyKwinOverlayFix: () =>
+    ipcRenderer.invoke('overlay:kwin-fix-apply'),
+
+  removeKwinOverlayFix: () =>
+    ipcRenderer.invoke('overlay:kwin-fix-remove'),
+
   // Launch Deadlock via Steam protocol (respects saved launch options)
   launchDeadlock: () =>
     ipcRenderer.invoke('game:launch-deadlock'),
@@ -163,6 +173,9 @@ declare global {
       onGameStateChanged: (callback: (payload: { state: GameState; matchId?: number; timestamp: number }) => void) => void;
       getPlayerNames: (accountIds: number[]) => Promise<Record<number, string | null>>;
       cachePlayerNames: (entries: Array<{ accountId: number; personaname: string; avatarmedium?: string }>) => Promise<{ success: boolean }>;
+      getKwinOverlayFixStatus: () => Promise<{ applicable: boolean; installed: boolean; rulesPath: string; reason?: string }>;
+      applyKwinOverlayFix: () => Promise<{ success: boolean; installed: boolean; error?: string; backupPath?: string }>;
+      removeKwinOverlayFix: () => Promise<{ success: boolean; installed: boolean; error?: string }>;
     };
     spotify: {
       login: () => Promise<{ success: boolean; displayName?: string; error?: string }>;

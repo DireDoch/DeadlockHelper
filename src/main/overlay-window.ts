@@ -78,6 +78,9 @@ export function createOverlayWindow(preloadDir: string): void {
     height: OVERLAY_H,
     x,
     y,
+    // Stable, distinct window caption — the match key for the KWin keep-above
+    // rule (see kwin-overlay-rule.ts). Must not collide with the main window.
+    title: 'Deadlock Overlay',
     frame: false,
     transparent: true,
     alwaysOnTop: true,

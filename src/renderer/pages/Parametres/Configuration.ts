@@ -22,6 +22,8 @@ export class ConfigurationPage {
   private demoModeEnabled = false;
   private steamProfile: SteamProfile = null;
   private overlaySettings: OverlaySettings = { ...DEFAULT_OVERLAY };
+  // KWin keep-above fix status (KDE Plasma + Wayland only); null until loaded
+  private kwinFix: { applicable: boolean; installed: boolean } | null = null;
 
   mount(container: HTMLElement): void {
     this.container = container;
@@ -30,6 +32,7 @@ export class ConfigurationPage {
       this.loadDemoModeState(),
       this.loadSteamProfile(),
       this.loadOverlaySettings(),
+      this.loadKwinFixStatus(),
     ]).then(() => this.render());
   }
 
@@ -40,6 +43,7 @@ export class ConfigurationPage {
       this.loadDemoModeState(),
       this.loadSteamProfile(),
       this.loadOverlaySettings(),
+      this.loadKwinFixStatus(),
     ]).then(() => this.render());
   }
 
@@ -77,6 +81,36 @@ export class ConfigurationPage {
     } catch {
       // ignore
     }
+  }
+
+  /** Load whether the KWin keep-above fix applies here and is installed. */
+  private async loadKwinFixStatus(): Promise<void> {
+    try {
+      const s = await (window.api as any).getKwinOverlayFixStatus?.();
+      this.kwinFix = s ? { applicable: !!s.applicable, installed: !!s.installed } : null;
+    } catch {
+      this.kwinFix = null; // not wired (e.g. non-Linux) — hide the block
+    }
+  }
+
+  private async handleApplyKwinFix(): Promise<void> {
+    try {
+      const res = await (window.api as any).applyKwinOverlayFix?.();
+      if (res?.success && this.kwinFix) this.kwinFix.installed = true;
+    } catch (error) {
+      console.error('Apply KWin overlay fix failed:', error);
+    }
+    this.render();
+  }
+
+  private async handleRemoveKwinFix(): Promise<void> {
+    try {
+      await (window.api as any).removeKwinOverlayFix?.();
+      if (this.kwinFix) this.kwinFix.installed = false;
+    } catch (error) {
+      console.error('Remove KWin overlay fix failed:', error);
+    }
+    this.render();
   }
 
   private async loadDemoModeState(): Promise<void> {
@@ -282,6 +316,39 @@ export class ConfigurationPage {
               </div>
             </div>
 
+            ${this.kwinFix?.applicable ? `
+            <!-- KDE/Wayland keep-above fix -->
+            <div class="mb-4 pt-4 border-t border-grey-600">
+              <label class="block text-sm text-grey-300 mb-1">Correctif KDE / Wayland — Garder au premier plan</label>
+              <p class="text-xs text-grey-500 mb-3">
+                Sur KDE Plasma (Wayland), l'overlay passe derrière le jeu quand celui-ci est au premier plan.
+                Ce correctif ajoute deux règles KWin : <code class="text-frosted-mint-400">keepAbove</code> sur l'overlay,
+                et <code class="text-frosted-mint-400">fullscreen=No</code> sur Deadlock (pour qu'il ne monte pas dans
+                la couche plein écran qui masque l'overlay). Requiert le mode Borderless/Windowed. Réversible à tout moment.
+              </p>
+              <div class="flex items-center gap-3">
+                <button
+                  id="kwin-fix-apply-btn"
+                  type="button"
+                  class="px-3 py-1.5 rounded text-xs border transition-colors ${
+                    this.kwinFix.installed
+                      ? 'border-grey-600 text-grey-500'
+                      : 'border-frosted-mint-500 text-frosted-mint-400 hover:bg-frosted-mint-500/10'
+                  }"
+                >${this.kwinFix.installed ? 'Réappliquer' : 'Appliquer le correctif'}</button>
+                ${this.kwinFix.installed ? `
+                <button
+                  id="kwin-fix-remove-btn"
+                  type="button"
+                  class="px-3 py-1.5 rounded text-xs border border-red-500 text-red-400 hover:bg-red-500/10 transition-colors"
+                >Retirer</button>` : ''}
+                <span class="text-xs ${this.kwinFix.installed ? 'text-frosted-mint-500' : 'text-grey-500'}">
+                  ${this.kwinFix.installed ? '✓ Règle KWin installée' : 'Non installé'}
+                </span>
+              </div>
+            </div>
+            ` : ''}
+
             <!-- OS info -->
             <p class="text-xs text-grey-600">
               OS détecté : <span class="text-grey-400">${
@@ -340,6 +407,12 @@ export class ConfigurationPage {
         this.saveOverlaySettings();
       });
     });
+
+    // KWin keep-above fix buttons (only rendered on KDE + Wayland)
+    document.getElementById('kwin-fix-apply-btn')
+      ?.addEventListener('click', () => this.handleApplyKwinFix());
+    document.getElementById('kwin-fix-remove-btn')
+      ?.addEventListener('click', () => this.handleRemoveKwinFix());
 
     // Steam buttons are handled via delegation in boundHandleContainerClick (mount)
   }

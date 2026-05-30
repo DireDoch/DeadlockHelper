@@ -19,6 +19,11 @@ import {
   getOverlaySettings,
   setupOverlayIpcHandlers,
 } from './overlay-window';
+import {
+  getKwinOverlayRuleStatus,
+  installKwinOverlayRule,
+  removeKwinOverlayRule,
+} from './kwin-overlay-rule';
 import { LogWatcher } from './log-watcher';
 import started from 'electron-squirrel-startup';
 import type { ApiHealthStatus, CachedMatchData, MatchData, GameState } from '../lib/types';
@@ -498,6 +503,12 @@ function setupIpcHandlers(): void {
 
   // Setup overlay handlers
   setupOverlayIpcHandlers();
+
+  // KWin "keep overlay above the game" fix (KDE Plasma + Wayland only).
+  // Driven by an explicit button in the Configuration page — see kwin-overlay-rule.ts.
+  ipcMain.handle('overlay:kwin-fix-status', () => getKwinOverlayRuleStatus());
+  ipcMain.handle('overlay:kwin-fix-apply', () => installKwinOverlayRule());
+  ipcMain.handle('overlay:kwin-fix-remove', () => removeKwinOverlayRule());
 
   // Launch Deadlock via Steam protocol (respects user's saved launch options)
   // Steam App ID 1422450 = Deadlock
