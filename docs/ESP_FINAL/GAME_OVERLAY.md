@@ -101,16 +101,19 @@ La position après drag est **sauvegardée automatiquement** dans `~/.config/dea
 
 ---
 
-## 4. Contrainte : Borderless Windowed obligatoire
+## 4. Contrainte : Borderless Windowed ~~obligatoire~~ → **levée** (voir §7)
 
-Sur Linux, `setAlwaysOnTop(true, 'screen-saver')` et `setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })` ne permettent pas à l'overlay de passer au-dessus d'un jeu en **fullscreen exclusif**. Le compositor cède le contrôle total de l'affichage au jeu.
+> **Mise à jour (correctif §7).** Cette contrainte ne s'applique qu'à l'approche **`alwaysOnTop` seule**. Depuis la règle KWin `fullscreen=No` sur le jeu (§7.2, Règle 2), l'overlay reste visible **dans tous les Window Modes, y compris le plein écran** — confirmé par l'utilisateur. La règle empêche Deadlock d'entrer dans l'état fullscreen, donc KWin ne lui cède jamais le contrôle exclusif de l'affichage. Le reste de cette section décrit l'ancienne limite (conservée pour l'historique).
 
-En **Borderless Windowed** (`-windowed -noborder` dans les launch options), le compositor garde le contrôle de la composition et l'overlay reste visible.
+Sur Linux, `setAlwaysOnTop(true, 'screen-saver')` et `setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })` ne permettent **pas à eux seuls** à l'overlay de passer au-dessus d'un jeu en **fullscreen exclusif**. Le compositor cède le contrôle total de l'affichage au jeu.
 
-Launch options recommandées (déjà configurées par l'utilisateur) :
+En **Borderless Windowed** (`-windowed -noborder` dans les launch options), le compositor garde le contrôle de la composition et l'overlay reste visible — c'était le contournement avant le correctif KWin.
+
+Launch options recommandées :
 ```
 __NV_PRIME_RENDER_OFFLOAD=1 __GLX_VENDOR_LIBRARY_NAME=nvidia %command% -windowed -noborder -condebug
 ```
+(`-condebug` reste utile pour le fallback game-clock via `console.log`. `-windowed -noborder` n'est plus *requis* pour la visibilité de l'overlay grâce à la Règle 2.)
 
 ---
 
@@ -165,18 +168,19 @@ Un plan généré (« Principal Engineer ») proposait 3 contournements. Confron
 | Règle 1 — overlay | Match **titre** `Deadlock Overlay` (`titlematch=2`) → force `keepabove=true` (`aboverule=2`). Le titre est par-fenêtre, n'affecte pas la fenêtre principale. |
 | Règle 2 — jeu | Match **wmclass** `steam_app_1422450` (`wmclassmatch=2`) → force `fullscreen=false` (`fullscreenrule=2`). Empêche KWin de promouvoir Deadlock en couche `Active` (qui masquerait l'overlay). |
 | Propriétés écartées | `acceptfocus=false` + `fsplevel=4` (cassent le drag/clic, résolvent le mauvais problème) |
-| Déclenchement | **Bouton** « Appliquer le correctif » dans Configuration (consentement explicite, réversible) |
-| Sûreté | Sauvegarde `kwinrulesrc.deadlockhelper.bak` avant 1ʳᵉ écriture ; écriture atomique ; `id` de groupes fixes (`deadlockhelper-overlay`, `deadlockhelper-game`) → idempotent + suppression triviale |
+| Déclenchement | **Automatique** au lancement réel de Deadlock (détection process), retiré à la fermeture — en phase avec le cycle de vie du jeu, donc appliqué dans la vraie résolution / Window Mode. Toggle dans Configuration (activé par défaut, `autoKwinFix`). |
+| Sûreté | Sauvegarde `kwinrulesrc.deadlockhelper.bak` avant 1ʳᵉ écriture ; écriture atomique ; `id` de groupes fixes (`deadlockhelper-overlay`, `deadlockhelper-game`) → idempotent + suppression triviale ; nettoyage best-effort sur `before-quit` |
 
 ### 7.3 Fichiers
 
 ```
 src/main/desktop-environment.ts   ← détection OS / DE / Wayland (prérequis manquant)
-src/main/kwin-overlay-rule.ts      ← lecture/écriture kwinrulesrc, install/remove/status, reconfigure
-src/main/overlay-window.ts         ← (modif) title: 'Deadlock Overlay' explicite = clé de match
-src/main/main.ts                   ← (modif) 3 handlers IPC : kwin-fix-status / -apply / -remove
+src/main/kwin-overlay-rule.ts      ← lecture/écriture kwinrulesrc, install/remove/status, reconfigure (2 règles)
+src/main/overlay-window.ts         ← (modif) title: 'Deadlock Overlay' = clé de match ; défaut autoKwinFix=true
+src/main/main.ts                   ← (modif) 3 handlers IPC + syncKwinOverlayFix() auto sur lancement/fermeture + cleanup before-quit
 src/preload/preload.ts             ← (modif) expose getKwinOverlayFixStatus / apply / remove
-src/renderer/pages/Parametres/Configuration.ts ← (modif) bloc UI + boutons (visible si KDE+Wayland)
+src/renderer/pages/Parametres/Configuration.ts ← (modif) toggle « automatique » + statut (visible si KDE+Wayland)
+src/lib/types/index.ts             ← (modif) OverlaySettings.autoKwinFix
 ```
 
 ### 7.4 Règles générées (extrait de `kwinrulesrc`)
@@ -205,16 +209,22 @@ fullscreenrule=2     ; 2 = Force
 
 ### 7.5 Utilisation
 
-1. Lancer Deadlock en **Borderless Windowed** (toujours requis — voir §4).
-2. Page **Configuration → Overlay In-Game**, cliquer **« Appliquer le correctif »** (bloc visible uniquement sur KDE+Wayland).
-3. La règle est écrite et KWin la recharge instantanément (`reconfigure`). **« Retirer »** la supprime proprement.
+Plus aucune action manuelle. Le toggle **« Correctif KDE / Wayland — automatique »** (Configuration → Overlay In-Game) est **activé par défaut** sur KDE+Wayland :
+
+1. Lancer Deadlock dans **n'importe quel Window Mode** (Windowed, Borderless **ou Plein écran** — la Règle 2 neutralise le plein écran exclusif).
+2. Dès que le process est détecté, l'app écrit les 2 règles + `qdbus6 … reconfigure` → l'overlay reste au premier plan.
+3. À la fermeture du jeu, les règles sont **retirées automatiquement** (le `fullscreen=No` ne persiste donc pas pour une partie jouée sans l'app).
+
+Désactiver le toggle nettoie immédiatement les règles. Le main process applique/retire via `syncKwinOverlayFix()` dans la boucle de détection `checkDeadlockAndMatchStatus()`.
 
 ### 7.6 Vérifié
 
 - ✅ Build : `main.ts`, modules KWin et `Configuration.ts` compilent (esbuild, externals comme electron-forge) ; preload via Vite.
 - ✅ Détection : `applicable=true` sur Plasma 6.6.5 / Wayland.
 - ✅ Logique (test temp `XDG_CONFIG_HOME`) : install écrit **les 2 groupes** + préserve une règle utilisateur existante, crée la sauvegarde ; 2ᵉ install **idempotente** (un seul exemplaire de chaque groupe) ; remove restaure l'état initial.
-- ⏳ **Reste à valider manuellement** : effet visuel au-dessus d'une vraie partie en **Borderless** (nécessite Deadlock lancé). Vérifier aussi que `fullscreen=No` ne dégrade pas le rendu du jeu.
+- ✅ **Cycle de vie auto** (test 2 sessions launch/close) : 16/16 assertions — règles posées au lancement, retirées à la fermeture, règle utilisateur préservée à chaque cycle, `kwinrulesrc` revient à son état initial.
+- ✅ Application au-dessus d'une vraie partie : **confirmée par l'utilisateur** (« cela fonctionne »).
+- ✅ **Plein écran inclus** : confirmé par l'utilisateur — l'overlay reste visible **même en mode Plein écran**, la Règle 2 (`fullscreen=No`) empêchant Deadlock de prendre le contrôle exclusif de l'affichage. La contrainte Borderless du §4 est donc levée.
 
 ### 7.7 Pourquoi une 2ᵉ règle ? — couches de stacking KWin
 
@@ -222,7 +232,9 @@ Symptôme observé : avec `keepAbove` seul, l'overlay est visible en **ALT+TAB**
 
 Cause : KWin empile les fenêtres par **couches** — `Normal` < `Dock` (panel) < **`Above`** (keepAbove) < … < **`Active`** (fenêtre plein écran *active*). Tant que Deadlock n'est pas la fenêtre active plein écran, l'overlay (`Above`) passe dessus. Mais dès que le jeu devient **actif en plein écran**, KWin le promeut en couche **`Active`, au-dessus de `Above`** → l'overlay est masqué. **Aucune règle `keepAbove` ne peut battre une fenêtre plein écran active** (par conception ; confirmé sur les forums KDE/Ardour).
 
-Solution : forcer `fullscreen=No` sur la fenêtre du jeu (Règle 2) → Deadlock reste en couche `Normal`, l'overlay `Above` gagne, **même quand le jeu est focus**. Nécessite **Borderless/Windowed** ; le plein écran *exclusif* reste hors de portée sur Wayland.
+Solution : forcer `fullscreen=No` sur la fenêtre du jeu (Règle 2) → Deadlock reste en couche `Normal`, l'overlay `Above` gagne, **même quand le jeu est focus**.
+
+**Observation clé** : cette règle ne *combat* pas une fenêtre plein écran — elle **empêche** la fenêtre d'entrer dans l'état fullscreen. Conséquence vérifiée en jeu : même quand l'utilisateur choisit **Plein écran** dans Deadlock, KWin refuse la transition, le jeu reste composité comme une fenêtre normale, et l'overlay reste visible. C'est ce qui fait fonctionner **tous les Window Modes**, y compris le plein écran exclusif — qui était réputé hors de portée sur Wayland pour une approche par simple stacking.
 
 > `wmclass` de Deadlock relevé via `qdbus6 org.kde.KWin /KWin queryWindowInfo` (jeu lancé en Windowed) :
 > `resourceClass = steam_app_1422450`, `caption = Deadlock`, `fullscreen = false`, `layer = 2` (Normal).

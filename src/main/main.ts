@@ -252,6 +252,22 @@ function emitGameStateChanged(state: GameState, matchId?: number): void {
   });
 }
 
+/**
+ * Apply / remove the KWin keep-above fix in lockstep with the game lifecycle.
+ * Tied to the real game launch (not a manual button) so the rules activate
+ * against the game's actual window/resolution and Window Mode, and are removed
+ * on close so the `fullscreen=No` rule never lingers for sessions played without
+ * the helper. No-op when the user disabled auto-fix (default on); the installer
+ * is itself a no-op off KDE/Wayland.
+ */
+function syncKwinOverlayFix(gameRunning: boolean): void {
+  if (getOverlaySettings().autoKwinFix === false) return;
+  const action = gameRunning ? installKwinOverlayRule() : removeKwinOverlayRule();
+  action
+    .then((r) => console.log(`[Main] KWin overlay fix (${gameRunning ? 'launch' : 'close'}):`, JSON.stringify(r)))
+    .catch((e) => console.error('[Main] KWin overlay fix error:', e));
+}
+
 async function checkDeadlockAndMatchStatus(): Promise<void> {
   const processStatus = await getDeadlockProcessStatus();
   const isRunning = processStatus.running;
@@ -263,6 +279,7 @@ async function checkDeadlockAndMatchStatus(): Promise<void> {
       emitMatchEnded(lastKnownMatchId);
       destroyOverlayWindow();
       logWatcher.stop();
+      syncKwinOverlayFix(false); // remove the rules now that the game is gone
     }
     lastGameRunning = false;
     lastKnownMatchId = null;
@@ -288,6 +305,8 @@ async function checkDeadlockAndMatchStatus(): Promise<void> {
       // Log watcher fires only if API hasn't already set the start time
       sendToOverlay('overlay:log-game-started', wallTime);
     });
+    // Auto-apply the KWin keep-above fix now that Deadlock is really running
+    syncKwinOverlayFix(true);
   }
   lastGameRunning = true;
 
@@ -532,6 +551,16 @@ app.on('ready', () => {
 // Quit when all windows are closed, except on macOS. There, it's common
 // for applications and their menu bar to stay active until the user quits
 // explicitly with Cmd + Q.
+// Best-effort: if we exit while the game is still running, don't leave the
+// fullscreen=No rule behind. removeKwinOverlayRule writes the cleaned file
+// synchronously before its (async) reconfigure, so the rule is gone from disk
+// even if the process exits before reconfigure completes.
+app.on('before-quit', () => {
+  if (lastGameRunning && getOverlaySettings().autoKwinFix !== false) {
+    removeKwinOverlayRule().catch(() => {});
+  }
+});
+
 app.on('window-all-closed', () => {
   stopHeartbeat();
   stopDeadlockPolling();

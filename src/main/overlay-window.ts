@@ -20,6 +20,7 @@ const overlayStore = new Store<{ settings: OverlaySettings }>({
       showMidBossTimer: true,
       showUrnTimer: true,
       showItemSuggestions: true,
+      autoKwinFix: true,
     },
   },
 });

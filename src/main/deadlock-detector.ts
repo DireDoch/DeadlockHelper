@@ -121,7 +121,7 @@ export async function findActiveMatchByAccountId(
 
     return { matchId: null, durationS: null, playerHeroId: null, enemyHeroIds: [] };
   } catch {
-    return { matchId: null };
+    return { matchId: null, durationS: null, playerHeroId: null, enemyHeroIds: [] };
   } finally {
     clearTimeout(timeout);
   }

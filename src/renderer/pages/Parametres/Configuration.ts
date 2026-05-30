@@ -93,23 +93,28 @@ export class ConfigurationPage {
     }
   }
 
-  private async handleApplyKwinFix(): Promise<void> {
+  /**
+   * Toggle automatic application of the KWin fix on game launch. The fix is
+   * applied/removed by the main process in lockstep with the game lifecycle;
+   * here we only persist the preference and reconcile the current state.
+   */
+  private async toggleAutoKwinFix(enabled: boolean): Promise<void> {
+    this.overlaySettings.autoKwinFix = enabled;
+    await this.saveOverlaySettings();
     try {
-      const res = await (window.api as any).applyKwinOverlayFix?.();
-      if (res?.success && this.kwinFix) this.kwinFix.installed = true;
+      if (!enabled) {
+        // Turning off → clean up any rules currently applied
+        await (window.api as any).removeKwinOverlayFix?.();
+      } else {
+        // Turning on → apply immediately if Deadlock is already running;
+        // otherwise it applies automatically on the next launch
+        const status = await window.api.getGameStatus?.();
+        if (status?.isRunning) await (window.api as any).applyKwinOverlayFix?.();
+      }
     } catch (error) {
-      console.error('Apply KWin overlay fix failed:', error);
+      console.error('Toggle auto KWin fix failed:', error);
     }
-    this.render();
-  }
-
-  private async handleRemoveKwinFix(): Promise<void> {
-    try {
-      await (window.api as any).removeKwinOverlayFix?.();
-      if (this.kwinFix) this.kwinFix.installed = false;
-    } catch (error) {
-      console.error('Remove KWin overlay fix failed:', error);
-    }
+    await this.loadKwinFixStatus();
     this.render();
   }
 
@@ -316,38 +321,37 @@ export class ConfigurationPage {
               </div>
             </div>
 
-            ${this.kwinFix?.applicable ? `
-            <!-- KDE/Wayland keep-above fix -->
+            ${this.kwinFix?.applicable ? (() => {
+              const auto = this.overlaySettings.autoKwinFix !== false;
+              return `
+            <!-- KDE/Wayland keep-above fix (automatic on game launch) -->
             <div class="mb-4 pt-4 border-t border-grey-600">
-              <label class="block text-sm text-grey-300 mb-1">Correctif KDE / Wayland — Garder au premier plan</label>
-              <p class="text-xs text-grey-500 mb-3">
-                Sur KDE Plasma (Wayland), l'overlay passe derrière le jeu quand celui-ci est au premier plan.
-                Ce correctif ajoute deux règles KWin : <code class="text-frosted-mint-400">keepAbove</code> sur l'overlay,
-                et <code class="text-frosted-mint-400">fullscreen=No</code> sur Deadlock (pour qu'il ne monte pas dans
-                la couche plein écran qui masque l'overlay). Requiert le mode Borderless/Windowed. Réversible à tout moment.
-              </p>
-              <div class="flex items-center gap-3">
+              <div class="flex items-center justify-between gap-4">
+                <div class="flex-1">
+                  <label class="block text-sm text-grey-300 mb-1">Correctif KDE / Wayland — automatique</label>
+                  <p class="text-xs text-grey-500">
+                    Applique automatiquement les règles KWin
+                    (<code class="text-frosted-mint-400">keepAbove</code> sur l'overlay +
+                    <code class="text-frosted-mint-400">fullscreen=No</code> sur Deadlock) dès que le jeu est
+                    lancé, puis les retire à la fermeture — quel que soit le Window Mode. Requiert Borderless/Windowed.
+                  </p>
+                  <p class="text-xs mt-1 ${this.kwinFix.installed ? 'text-frosted-mint-500' : 'text-grey-500'}">
+                    ${this.kwinFix.installed ? '✓ Règles actives (Deadlock détecté)' : auto ? "En attente — s'appliquera au lancement de Deadlock" : 'Désactivé'}
+                  </p>
+                </div>
                 <button
-                  id="kwin-fix-apply-btn"
-                  type="button"
-                  class="px-3 py-1.5 rounded text-xs border transition-colors ${
-                    this.kwinFix.installed
-                      ? 'border-grey-600 text-grey-500'
-                      : 'border-frosted-mint-500 text-frosted-mint-400 hover:bg-frosted-mint-500/10'
-                  }"
-                >${this.kwinFix.installed ? 'Réappliquer' : 'Appliquer le correctif'}</button>
-                ${this.kwinFix.installed ? `
-                <button
-                  id="kwin-fix-remove-btn"
-                  type="button"
-                  class="px-3 py-1.5 rounded text-xs border border-red-500 text-red-400 hover:bg-red-500/10 transition-colors"
-                >Retirer</button>` : ''}
-                <span class="text-xs ${this.kwinFix.installed ? 'text-frosted-mint-500' : 'text-grey-500'}">
-                  ${this.kwinFix.installed ? '✓ Règle KWin installée' : 'Non installé'}
-                </span>
+                  id="kwin-auto-toggle"
+                  role="switch"
+                  aria-checked="${auto}"
+                  aria-label="Correctif KWin automatique"
+                  class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-frosted-mint-500 focus:ring-offset-2 focus:ring-offset-charcoal-200 ${auto ? 'bg-frosted-mint-500' : 'bg-grey-600'}"
+                >
+                  <span class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${auto ? 'translate-x-5' : 'translate-x-0'}"></span>
+                </button>
               </div>
             </div>
-            ` : ''}
+            `;
+            })() : ''}
 
             <!-- OS info -->
             <p class="text-xs text-grey-600">
@@ -409,10 +413,10 @@ export class ConfigurationPage {
     });
 
     // KWin keep-above fix buttons (only rendered on KDE + Wayland)
-    document.getElementById('kwin-fix-apply-btn')
-      ?.addEventListener('click', () => this.handleApplyKwinFix());
-    document.getElementById('kwin-fix-remove-btn')
-      ?.addEventListener('click', () => this.handleRemoveKwinFix());
+    const kwinToggle = document.getElementById('kwin-auto-toggle');
+    kwinToggle?.addEventListener('click', () => {
+      this.toggleAutoKwinFix(this.overlaySettings.autoKwinFix === false);
+    });
 
     // Steam buttons are handled via delegation in boundHandleContainerClick (mount)
   }

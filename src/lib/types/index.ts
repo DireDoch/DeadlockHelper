@@ -317,6 +317,8 @@ export interface OverlaySettings {
   showMidBossTimer: boolean;
   showUrnTimer: boolean;
   showItemSuggestions: boolean;
+  // Auto-apply the KWin keep-above fix when Deadlock launches (KDE/Wayland). Default true.
+  autoKwinFix?: boolean;
   // Last position saved after a user drag (takes priority over corner on next launch)
   lastX?: number;
   lastY?: number;
