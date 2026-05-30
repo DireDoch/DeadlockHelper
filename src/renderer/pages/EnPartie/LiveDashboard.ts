@@ -51,6 +51,7 @@ export class LiveDashboardPage {
   private matchData: MatchData | null = null;
   private heroCache = new Map<number, HeroData>();
   private detectedMatchId: string | null = null;
+  private loadedMatchId: string | null = null;
   private currentGameState: GameState = 'GAME_CLOSED';
 
   // Demo mode state (cycle resets on each app session)
@@ -120,14 +121,11 @@ export class LiveDashboardPage {
     // Re-read demo flag in case it changed while the page was mounted
     this.isDemoMode = localStorage.getItem('demoModeEnabled') === 'true';
 
-    if (this.isDemoMode || this.currentGameState === 'GAME_IN_MATCH') {
-      this.renderInitialLoading();
-      this.loadMatchData();
-    } else if (this.currentGameState === 'GAME_MENU') {
-      this.renderMenuView();
-    } else {
-      this.renderClosedView();
-    }
+    // Always show REAL data: the live-detected match if any, otherwise the
+    // logged-in player's most recent match (resolved inside loadMatchData()).
+    // No demo placeholder, no hard-coded match id.
+    this.renderInitialLoading();
+    this.loadMatchData();
   }
 
   private async transitionToState(state: GameState): Promise<void> {
@@ -138,14 +136,10 @@ export class LiveDashboardPage {
     await new Promise<void>((r) => setTimeout(r, 300));
     if (!this.container) return;
 
-    if (state === 'GAME_IN_MATCH') {
-      this.renderInitialLoading();
-      this.loadMatchData();
-    } else if (state === 'GAME_MENU') {
-      this.renderMenuView();
-    } else {
-      this.renderClosedView();
-    }
+    // On any state change, refresh with real data (detected match when in a
+    // match, most recent match otherwise) instead of placeholder screens.
+    this.renderInitialLoading();
+    this.loadMatchData();
 
     this.container.style.opacity = '1';
   }
@@ -221,21 +215,61 @@ export class LiveDashboardPage {
 
   // ── Match ID resolution ──────────────────────────────────────────────────────
 
-  private resolveMatchId(): string {
-    // Demo mode: use the current demo match ID from the cycle
+  private async resolveMatchId(): Promise<string | null> {
+    // Demo mode (optional toggle): cycle through known real match IDs
     if (this.isDemoMode) {
       return String(DEMO_MATCH_IDS[this.demoIndex]);
     }
 
+    // 1. A live-detected match always wins
     if (this.detectedMatchId) return this.detectedMatchId;
-
     const stored = localStorage.getItem('detectedMatchId');
     if (stored) {
       this.detectedMatchId = stored;
       return stored;
     }
 
-    return '57331114'; // fallback
+    // 2. Otherwise, show the logged-in player's most recent real match.
+    return this.fetchMostRecentMatchId();
+  }
+
+  /**
+   * Resolves the logged-in player's most recent match_id.
+   * Flow: steam profile (steamId64) → account_id → GET /v1/players/{id}/match-history
+   * → entry with the highest start_time. Lets the dashboard display real data even
+   * when no live match is detected (no demo, no hard-coded id).
+   */
+  private async fetchMostRecentMatchId(): Promise<string | null> {
+    try {
+      const profile = await window.api?.steamGetProfile?.();
+      if (!profile?.steamId64) return null;
+      const accountId = this.steamId64ToAccountId(profile.steamId64);
+      if (accountId === null) return null;
+
+      // GET /v1/players/{account_id}/match-history
+      const res = await fetch(`${DEADLOCK_API}/v1/players/${accountId}/match-history`);
+      if (!res.ok) return null;
+      const history: MatchHistoryEntry[] = await res.json();
+      if (!Array.isArray(history) || history.length === 0) return null;
+
+      const latest = history.reduce((a, b) => (b.start_time > a.start_time ? b : a));
+      return latest.match_id ? String(latest.match_id) : null;
+    } catch {
+      return null;
+    }
+  }
+
+  /** SteamID64 → 32-bit account_id (subtract the Steam base constant). */
+  private steamId64ToAccountId(steamId64: string): number | null {
+    try {
+      const base = 76561197960265728n;
+      const value = BigInt(steamId64);
+      if (value < base) return null;
+      const accountId = Number(value - base);
+      return Number.isSafeInteger(accountId) ? accountId : null;
+    } catch {
+      return null;
+    }
   }
 
   // ── Main data loading ────────────────────────────────────────────────────────
@@ -248,7 +282,13 @@ export class LiveDashboardPage {
     try {
       if (!window.api?.executePython) throw new Error('API not available');
 
-      const matchId = this.resolveMatchId();
+      const matchId = await this.resolveMatchId();
+      if (!matchId) {
+        // Not logged in to Steam, or no match history yet → nothing real to show.
+        this.renderClosedView();
+        return;
+      }
+      this.loadedMatchId = matchId;
 
       // Always use real API — demo mode uses real match IDs, no fake data
       let response = await window.api.executePython('match', matchId, false);
@@ -594,50 +634,49 @@ export class LiveDashboardPage {
   }
 
   /**
-   * Organises the 12 players into a 6×2 grid where columns represent lane matchups:
-   *   Col 0–1 : Yellow lane (team 0 vs team 1)
-   *   Col 2–3 : Blue   lane (team 0 vs team 1)
-   *   Col 4–5 : Green  lane (team 0 vs team 1)
-   *
-   * Row 0 = Team 0 (left side), Row 1 = Team 1 (right side).
-   * Adjacent rows in the same column are the direct lane opponents.
+   * Splits players into two team rows, ordered by lane (yellow→blue→green) then slot
+   * so columns line up as lane match-ups when possible. The column count adapts to
+   * team size (6 for 6v6, 4 for 4v4, …) so the grid works for any game mode.
    */
-  private organizePlayersIntoGrid(players: Player[]): { row0: (Player | null)[]; row1: (Player | null)[] } {
-    const byLane = (lane: string, team: 0 | 1) => players.filter((p) => p.lane === lane && p.team === team);
-
-    const row0: (Player | null)[] = [
-      byLane('yellow', 0)[0] ?? null, byLane('yellow', 0)[1] ?? null,
-      byLane('blue',   0)[0] ?? null, byLane('blue',   0)[1] ?? null,
-      byLane('green',  0)[0] ?? null, byLane('green',  0)[1] ?? null,
-    ];
-    const row1: (Player | null)[] = [
-      byLane('yellow', 1)[0] ?? null, byLane('yellow', 1)[1] ?? null,
-      byLane('blue',   1)[0] ?? null, byLane('blue',   1)[1] ?? null,
-      byLane('green',  1)[0] ?? null, byLane('green',  1)[1] ?? null,
-    ];
-
-    return { row0, row1 };
+  private organizePlayersIntoGrid(players: Player[]): { row0: Player[]; row1: Player[] } {
+    const laneOrder: Record<string, number> = { yellow: 0, blue: 1, green: 2 };
+    const sortKey = (p: Player) =>
+      (laneOrder[p.lane ?? ''] ?? 9) * 100 + ((p as any).player_slot ?? 0);
+    const teamSorted = (team: number) =>
+      players.filter((p) => p.team === team).sort((a, b) => sortKey(a) - sortKey(b));
+    return { row0: teamSorted(0), row1: teamSorted(1) };
   }
 
   private renderMatchData(): void {
     if (!this.container || !this.matchData) return;
 
     const { row0, row1 } = this.organizePlayersIntoGrid(this.matchData.players);
+    const cols = Math.max(row0.length, row1.length, 1);
 
-    const getLaneColor = (col: number): 'yellow' | 'blue' | 'green' =>
-      col < 2 ? 'yellow' : col < 4 ? 'blue' : 'green';
+    const laneColorFor = (p: Player): 'yellow' | 'blue' | 'green' =>
+      (p.lane as 'yellow' | 'blue' | 'green' | undefined) ?? 'blue';
 
-    const renderCell = (player: Player | null, col: number): string => {
+    const renderCell = (player: Player | null): string => {
       if (!player) {
         return `<div class="bg-[#1a1f24] rounded-lg border border-[#2a2f35] opacity-20"></div>`;
       }
       const el = document.createElement('div');
-      PlayerCard.mount(el, { player, laneColor: getLaneColor(col) });
+      PlayerCard.mount(el, { player, laneColor: laneColorFor(player) });
       return el.innerHTML;
     };
 
-    const matchId    = this.matchData.match_id ?? this.resolveMatchId();
-    const demoLabel  = this.isDemoMode
+    const renderRow = (team: Player[]): string => {
+      let cells = '';
+      for (let i = 0; i < cols; i++) {
+        cells += `<div class="min-h-0">${renderCell(team[i] ?? null)}</div>`;
+      }
+      return cells;
+    };
+
+    const matchId   = this.matchData.match_id ?? this.loadedMatchId ?? '';
+    const total     = this.matchData.players.length;
+    const modeLabel = `${row0.length}v${row1.length} • ${total} joueurs`;
+    const demoLabel = this.isDemoMode
       ? `<span class="px-2 py-0.5 rounded text-xs font-medium bg-yellow-400/10 text-yellow-400 border border-yellow-400/30">DEMO</span>`
       : '';
 
@@ -649,36 +688,29 @@ export class LiveDashboardPage {
           <div class="flex items-center gap-3">
             <h1 class="text-lg font-bold text-white">Live Dashboard</h1>
             ${demoLabel}
-            <!-- Match ID always visible regardless of mode -->
+            <!-- Mode / player count derived from real metadata (adapts 12 / 8 / …) -->
+            <span class="px-2 py-0.5 rounded text-xs font-medium bg-frosted-mint-500/10 text-frosted-mint-500 border border-frosted-mint-500/30">${modeLabel}</span>
             <span class="text-xs text-[#555] font-mono">Match ID: ${matchId}</span>
           </div>
 
-          <!-- Refresh: shows cycle arrow in demo mode, simple reload icon in real mode -->
           <button
             id="refresh-match-btn"
             title="${this.isDemoMode ? 'Next demo match' : 'Refresh match data'}"
             class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-charcoal-200 hover:bg-charcoal-300 text-white border border-grey-600 hover:border-frosted-mint-500 transition-colors text-sm"
           >
-            ${this.isDemoMode
-              ? `<svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                     d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                 </svg>
-                 Refresh`
-              : `<svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                     d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                 </svg>
-                 Actualiser`
-            }
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            ${this.isDemoMode ? 'Refresh' : 'Actualiser'}
           </button>
         </div>
 
-        <!-- GRID: 6 columns × 2 rows, each column = one lane matchup -->
-        <!-- Yellow (col 0-1) | Blue (col 2-3) | Green (col 4-5) -->
-        <div class="flex-1 grid grid-cols-6 grid-rows-2 gap-x-2 gap-y-2 p-2 overflow-hidden">
-          ${row0.map((p, i) => `<div class="min-h-0">${renderCell(p, i)}</div>`).join('')}
-          ${row1.map((p, i) => `<div class="min-h-0">${renderCell(p, i)}</div>`).join('')}
+        <!-- GRID: row 0 = team 0, row 1 = team 1. Columns adapt to team size. -->
+        <div class="flex-1 grid gap-x-2 gap-y-2 p-2 overflow-hidden"
+             style="grid-template-columns: repeat(${cols}, minmax(0, 1fr)); grid-template-rows: repeat(2, minmax(0, 1fr));">
+          ${renderRow(row0)}
+          ${renderRow(row1)}
         </div>
       </div>
     `;

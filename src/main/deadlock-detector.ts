@@ -1,6 +1,7 @@
 import { exec } from 'node:child_process';
 import * as fs from 'node:fs';
 import { promisify } from 'node:util';
+import { detectionLog } from './detection-logger'; // [TEMP DEBUG] retirer après diagnostic
 
 const execAsync = promisify(exec);
 
@@ -98,10 +99,24 @@ export async function findActiveMatchByAccountId(
       },
     );
 
+    // [TEMP DEBUG] statut HTTP brut de /v1/matches/active
+    detectionLog('API /matches/active réponse HTTP', { status: response.status, ok: response.ok, accountId });
+
     if (!response.ok) return { matchId: null, durationS: null, playerHeroId: null, enemyHeroIds: [] };
 
     const data = (await response.json()) as ActiveMatchEntry[];
-    if (!Array.isArray(data)) return { matchId: null, durationS: null, playerHeroId: null, enemyHeroIds: [] };
+    if (!Array.isArray(data)) {
+      detectionLog('API /matches/active: réponse non-tableau', { accountId }); // [TEMP DEBUG]
+      return { matchId: null, durationS: null, playerHeroId: null, enemyHeroIds: [] };
+    }
+
+    // [TEMP DEBUG] combien de matchs renvoyés + le compte est-il présent dans l'un d'eux ?
+    detectionLog('API /matches/active corps', {
+      accountId,
+      matchsRenvoyés: data.length,
+      matchIds: data.map((m) => m.match_id ?? null),
+      compteTrouvé: data.some((m) => Array.isArray(m.players) && m.players.some((p) => p.account_id === accountId)),
+    });
 
     for (const match of data) {
       const matchId = match.match_id;

@@ -6,17 +6,32 @@ Ce document décrit les décisions techniques et d'interface prises lors de la r
 
 ## 1. Vue d'ensemble
 
-Le Live Dashboard est la page centrale de l'application. Dès qu'une partie est détectée, elle affiche 12 cartes joueur (6 par équipe) chargées en temps réel depuis l'API communautaire Deadlock.
+Le Live Dashboard est la page centrale de l'application. Il affiche les cartes joueur (6 par équipe en 6v6, adaptatif selon le mode) chargées en temps réel depuis l'API communautaire Deadlock — **avec des données réelles, sans mode démo et sans `match_id` codé en dur**.
+
+### Résolution du `match_id` (données réelles)
+
+`resolveMatchId()` choisit le match à afficher dans cet ordre :
 
 ```
-game:state-changed (INGAME)
+1. detectedMatchId        ← partie détectée en live (console.log → game:state-changed)
+2. localStorage           ← dernier match détecté, persisté
+3. dernier match du joueur ← steamGetProfile() → accountId
+                             → GET /v1/players/{accountId}/match-history
+                             → entrée au start_time le plus récent
+   (sinon : écran d'info « connectez-vous / aucun historique »)
+```
+
+Cette résolution garantit que le dashboard affiche **toujours une vraie partie** (la partie en cours si détectée, sinon la dernière jouée), au lieu de dépendre du mode démo ou d'un ID fixe.
+
+```
+resolveMatchId() ──→ matchId réel
         │
         ▼
 LiveDashboard.ts (Renderer)
         │
-        ├─ Python (IPC) ──→ data_processor.py ──→ /v1/match/{id}/metadata   (roster des 12 joueurs)
+        ├─ Python (IPC) ──→ data_processor.py ──→ /v1/matches/{id}/metadata   (roster réel des joueurs)
         │
-        └─ Fetch direct (Renderer) ──→ 8 endpoints API   (enrichissement)
+        └─ Fetch direct (Renderer) ──→ 7 endpoints API   (enrichissement)
                 │
                 ├─ Steam profiles        /v1/players/steam?account_ids=…
                 ├─ Hero assets           /v1/assets/heroes/{id}
@@ -24,12 +39,14 @@ LiveDashboard.ts (Renderer)
                 ├─ Player MMR            /v1/players/mmr?account_ids=…
                 ├─ Rank distribution     /v1/players/mmr/distribution
                 ├─ Rank assets           /v1/assets/ranks
-                └─ Match histories (×12) /v1/players/{account_id}/match-history
+                └─ Match histories (×N)  /v1/players/{account_id}/match-history
 ```
 
 ---
 
-## 2. Mode Démo Statique
+## 2. Mode Démo Statique (optionnel)
+
+> **Évolution** : le mode démo n'est plus le chemin par défaut. Le dashboard affiche désormais des **données réelles** dès le démarrage via la résolution du `match_id` décrite au §1 (partie détectée → sinon dernier match du joueur). Le mode démo reste disponible comme **bascule optionnelle** (`demoModeEnabled`) pour rejouer 3 matchs connus — utile pour une démonstration reproductible — mais n'est plus nécessaire pour que la page soit fonctionnelle.
 
 ### 2.1 Motivation
 
@@ -76,7 +93,7 @@ this.demoIndex = (this.demoIndex + 1) % DEMO_MATCH_IDS.length;
 
 Le Python renvoie uniquement le **roster brut** : `account_id`, `hero_id`, `team`, `lane` pour chacun des 12 joueurs. Toutes les statistiques affichées dans les cartes sont récupérées **directement depuis le Renderer** en TypeScript, sans passer par Python, pour réduire la charge IPC.
 
-### 3.2 Les 8 endpoints
+### 3.2 Les 7 endpoints
 
 | # | Endpoint | Données extraites | Méthode de batch |
 |---|----------|-------------------|-----------------|
@@ -214,24 +231,26 @@ const steamProfileUrl = player.steamProfile?.profileurl
 
 ---
 
-## 5. Architecture de la grille 6×2
+## 5. Architecture de la grille adaptative (12 / 8 joueurs)
 
-### 5.1 Layout Tailwind
+### 5.1 Layout — nombre de colonnes dérivé du mode
 
-```html
-<div class="grid grid-cols-6 gap-4">
-  <!-- Équipe 0 : 6 cartes triées par lane (yellow, blue, green) -->
-  <!-- Équipe 1 : 6 cartes triées par lane (yellow, blue, green) -->
-</div>
-```
+La grille n'est plus figée à 6 colonnes : le **nombre de colonnes est calculé** à partir de la taille réelle des équipes, pour couvrir n'importe quel mode (6v6 → 6 colonnes, 4v4 → 4, …). Tailwind ne pouvant pas générer une classe dynamique `grid-cols-N`, on utilise un style inline :
 
-Les cartes sont triées par `laneOrder` avant insertion dans le DOM :
 ```typescript
-const LANE_ORDER: Record<string, number> = { yellow: 0, blue: 1, green: 2 };
-players.sort((a, b) => LANE_ORDER[a.laneColor ?? ''] - LANE_ORDER[b.laneColor ?? '']);
+const cols = Math.max(row0.length, row1.length, 1);
+// <div style="grid-template-columns: repeat(${cols}, minmax(0,1fr)); grid-template-rows: repeat(2,minmax(0,1fr));">
 ```
 
-Résultat visuel : la colonne 1 (gauche) de l'équipe A fait face à la colonne 1 (gauche) de l'équipe B — les adversaires en lane jaune sont alignés visuellement dans la grille.
+`organizePlayersIntoGrid` répartit les joueurs en deux rangées (équipe 0 / équipe 1), chacune triée par lane puis par `player_slot` :
+```typescript
+const laneOrder: Record<string, number> = { yellow: 0, blue: 1, green: 2 };
+const sortKey = (p) => (laneOrder[p.lane ?? ''] ?? 9) * 100 + (p.player_slot ?? 0);
+```
+
+L'en-tête affiche un badge **mode / nombre de joueurs** dérivé du metadata réel (`${row0.length}v${row1.length} • ${total} joueurs`, ex. `6v6 • 12 joueurs`).
+
+Résultat visuel : la colonne *i* de l'équipe 0 fait face à la colonne *i* de l'équipe 1 — les adversaires de même lane restent alignés, quel que soit l'effectif.
 
 ### 5.2 Séparation des équipes
 
@@ -247,16 +266,18 @@ Les deux équipes (`team === 0` et `team === 1`) occupent chacune **une rangée 
 
 ## 6. Détection réelle en production (rappel)
 
-La détection automatique de partie repose sur la surveillance du processus `deadlock.exe` et de l'API Deadlock. Le mode démo court-circuite uniquement la détection — toute la logique d'enrichissement reste identique.
+La détection automatique repose sur la surveillance du processus `deadlock.exe` **et la lecture du `console.log` local** (source fiable du `match_id` — voir `GAME_DETECTION.md`). L'API `/matches/active` n'est qu'un fallback (limité au top 200). Toute la logique d'enrichissement reste identique quel que soit le mode.
 
 | Paramètre | Valeur |
 |-----------|--------|
-| Processus cible (Windows) | `deadlock.exe` |
-| Arguments de lancement validés | `-steam -console` |
-| Chemin typique | `S:\common\Deadlock\game\bin\win64\deadlock.exe` |
+| Processus cible | `deadlock.exe` (Linux/Proton : `pgrep -f "[Dd]eadlock.exe"`) |
+| Options de lancement requises | `-condebug -conclearlog` (sinon pas de `console.log` → détection aveugle) |
+| Chemin du journal | `…/steamapps/common/Deadlock/game/citadel/console.log` |
 | Intervalle de polling processus | 7 secondes |
-| Intervalle de polling API (jeu ouvert) | 20 secondes |
-| Endpoint de détection de partie | `GET /v1/players/{account_id}/match-history` (dernier match `in_progress`) |
+| Lecture du journal (polling de secours) | 2 secondes |
+| Source du `match_id` (détection) | `console.log` → ligne `Lobby <id> for Match <matchId> created` |
+| Source du roster (affichage) | `GET /v1/matches/{id}/metadata` (via `executePython('match', …)`) |
+| Détection « hors live » | `GET /v1/players/{account_id}/match-history` (dernier match du joueur connecté) |
 
 ---
 
@@ -270,4 +291,8 @@ La détection automatique de partie repose sur la surveillance du processus `dea
 | `Promise.all` pour 12 historiques | Requêtes séquentielles | Réduit le temps de chargement de ~12× |
 | URL `/v1/assets/heroes/{id}` | `assets.deadlock-api.com/v2/…` | Le sous-domaine assets retourne un 301 non suivi par Electron |
 | Diviseur KDA minimum `0.1` | Division directe par deaths | Évite `Infinity` pour les joueurs à 0 mort dans leur historique |
-| Tri des cartes par lane avant render | Ordre API | Aligne visuellement les adversaires directs dans la grille 6×2 |
+| Tri des cartes par lane avant render | Ordre API | Aligne visuellement les adversaires directs dans la grille |
+| Détection via `console.log` local | API `/matches/active` | L'API est limitée au top 200 → vide pour les parties normales ; le journal donne le `match_id` fiable et instantané |
+| Données réelles par défaut (dernier match du joueur) | Mode démo / `match_id` fixe `57331114` | Page fonctionnelle immédiatement, sans dépendre de la démo ni d'un ID arbitraire |
+| Grille à colonnes dynamiques (`grid-template-columns` inline) | `grid-cols-6` figé | S'adapte au mode (12 / 8 joueurs) ; Tailwind ne génère pas de classe dynamique |
+| Résolution du `match_id` côté Renderer | Nouvel IPC Main | Réutilise `steamGetProfile` + fetch existant ; aucun changement du Main (rechargé à chaud par Vite) |

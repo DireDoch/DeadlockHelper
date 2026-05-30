@@ -100,3 +100,6 @@ out/
 
 # Cursor IDE
 .cursor/
+
+# [TEMP DEBUG] log de diagnostic détection de partie
+detection-debug.log

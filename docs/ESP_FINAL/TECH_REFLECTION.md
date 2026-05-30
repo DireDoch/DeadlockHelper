@@ -159,6 +159,39 @@ L’utilisation d’electron-store pour le cache de match est **pertinente** : l
 
 ---
 
+## 5. Détection de partie : API communautaire vs journal local du jeu
+
+### 5.1 Le problème constaté
+
+La détection « en partie » reposait initialement sur l'endpoint `GET /v1/matches/active?account_ids={id}`. Un **logging temporaire ajouté en production** (module `detection-logger.ts`, écrivant chaque cycle dans un fichier) a permis de diagnostiquer en conditions réelles : sur une vraie partie, **159 appels consécutifs** à cet endpoint ont tous renvoyé un tableau vide, alors que le compte interrogé figurait bien dans le match. La documentation de l'API a confirmé la cause : `/matches/active` est *« fetched from the watch tab… limited to the **top 200 matches** »* — il ne couvre que les ~200 parties live les mieux classées, **jamais une partie normale**.
+
+### 5.2 La solution : lire le `console.log` du jeu
+
+Deadlock (lancé avec `-condebug`) écrit son journal en clair, qui contient le `match_id` dès la connexion au serveur (`Lobby <id> for Match <matchId> created`). Un `LogWatcher` lit le nouveau contenu et en émet des événements (`match-started` / `match-ended`). Deux écueils ont été corrigés :
+
+- une **chaîne de détection erronée** (`InProgress` au lieu de `GameInProgress`) qui ne matchait jamais ;
+- une dépendance à **`fs.watch`** non fiable pour un fichier écrit via Proton/Wine → ajout d'un **polling de secours (2 s)** et d'un garde de troncature pour `-conclearlog`.
+
+Une variable `matchSource` (`'log' | 'api'`) garantit qu'un poll API vide ne peut pas clore une partie détectée localement. L'API est rétrogradée au rang de simple fallback.
+
+### 5.3 Limite résiduelle : pas de roster live pour les parties normales
+
+Le journal donne le `match_id` mais **pas** les 11 autres joueurs (ils transitent par des messages GC binaires). Le roster complet vient de `GET /v1/matches/{id}/metadata`, qui n'est disponible **qu'après** l'ingestion de la partie. La seule source réellement live (`/v1/matches/{id}/live/url`) exige un **parseur de diffusion Source 2** (haste / demofile-net) — piste identifiée mais hors périmètre.
+
+### 5.4 Avis et recommandations
+
+**Avis** — Le diagnostic par logging temporaire a été décisif : il a transformé une intuition (« l'API ne marche pas ») en preuve factuelle (159/159 vides, doc top-200), évitant de bâtir une solution sur une fondation invalide. Le pivot vers le journal local est la bonne décision : source fiable, instantanée, sans dépendance réseau ni quota.
+
+**Recommandations**
+
+1. **Retirer le logging temporaire** (`detection-logger.ts` + lignes `[TEMP DEBUG]`) une fois la détection stabilisée — il n'a de valeur qu'en phase de diagnostic.
+2. **Détecter l'absence de `-condebug`** : si le `console.log` ne grossit pas alors que le jeu tourne, avertir l'utilisateur que les options de lancement sont manquantes plutôt que d'échouer silencieusement.
+3. **Évolution « vrai live »** : pour afficher le roster pendant la partie (et pas seulement après), intégrer un parseur de broadcast Source 2 en *sidecar* alimenté par `/matches/{id}/live/url`.
+
+> ⚠️ **Gotcha de développement** : le code du **processus principal** Electron ne se recharge pas à chaud (le HMR de Vite ne touche que le renderer). Toute modification de `main.ts` / `log-watcher.ts` exige un redémarrage complet de `npm start`, sous peine de tester un binaire périmé.
+
+---
+
 ## Synthèse des recommandations prioritaires
 
 | Priorité | Domaine | Action |
@@ -167,5 +200,6 @@ L’utilisation d’electron-store pour le cache de match est **pertinente** : l
 | Haute | Packaging | Vérifier la structure réelle sous `resources/` après build et documenter Python 3.10+ dans le PATH. |
 | Moyenne | OAuth | Vérification OpenID complète pour Steam ; documentation sécurité (client_secret, PKCE si client public) pour Spotify. |
 | Moyenne | Cache | TTL ou limite du nombre d’entrées en cache ; garder un indicateur clair « données en cache » et option de rafraîchissement. |
+| Haute | Détection | Détection via le `console.log` local (l'API `/matches/active` est top-200 only) ; retirer le logging temporaire ; détecter l'absence de `-condebug`. |
 
 Ce rapport reflète l’état du code et de la configuration au moment de la rédaction ; les mesures de latence sont des ordres de grandeur et peuvent varier selon l’environnement et la charge des APIs externes.

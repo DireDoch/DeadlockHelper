@@ -8,8 +8,10 @@ const DEADLOCK_LOG_SUBPATH = 'steamapps/common/Deadlock/game/citadel/console.log
 export class LogWatcher extends EventEmitter {
   private logPath = '';
   private watcher: fs.FSWatcher | null = null;
+  private pollTimer: NodeJS.Timeout | null = null;
   private lastSize = 0;
   private gameStarted = false;
+  private currentMatchId: number | null = null;
 
   // Returns the best auto-detected path for the current OS, or '' if not found.
   static detectLogPath(): string {
@@ -81,29 +83,42 @@ export class LogWatcher extends EventEmitter {
     try {
       this.watcher = fs.watch(this.logPath, () => this.readNewContent());
     } catch {
-      // File not watchable yet — polling not added to keep it simple
+      // fs.watch may be unavailable — the polling fallback below covers it.
     }
+
+    // Polling fallback (every 2 s). fs.watch does NOT reliably deliver change
+    // events for console.log because the game writes it through Proton/Wine with
+    // buffered flushes — relying on fs.watch alone made match-started never fire.
+    // readNewContent() is cheap (reads only the bytes appended since lastSize).
+    this.pollTimer = setInterval(() => this.readNewContent(), 2000);
   }
 
   stop(): void {
     this.watcher?.close();
     this.watcher = null;
+    if (this.pollTimer) {
+      clearInterval(this.pollTimer);
+      this.pollTimer = null;
+    }
   }
 
   restart(): void {
     this.stop();
     this.gameStarted = false;
+    this.currentMatchId = null;
     this.start();
   }
 
   resetGameState(): void {
     this.gameStarted = false;
+    this.currentMatchId = null;
   }
 
   private readNewContent(): void {
     if (!this.logPath) return;
     try {
       const stat = fs.statSync(this.logPath);
+      if (stat.size < this.lastSize) this.lastSize = 0; // log cleared/rotated (e.g. -conclearlog) → re-read from start
       if (stat.size <= this.lastSize) return;
 
       const length = stat.size - this.lastSize;
@@ -114,10 +129,39 @@ export class LogWatcher extends EventEmitter {
       this.lastSize = stat.size;
 
       const chunk = buf.toString('utf8');
-      if (!this.gameStarted && chunk.includes('ChangeGameState: InProgress')) {
+
+      // ── Match start (gives the real match_id) ───────────────────────────────
+      // Deadlock writes "Lobby <lobbyId> for Match <matchId> created" when it
+      // connects to the match server. This is the reliable, real-time source of
+      // the match_id — far more dependable than the community /matches/active API.
+      // We take the last occurrence in the chunk in case several lines arrived at once.
+      const startMatch = [...chunk.matchAll(/for Match (\d+) created/g)].pop();
+      if (startMatch) {
+        const matchId = Number(startMatch[1]);
+        if (Number.isFinite(matchId) && matchId !== this.currentMatchId) {
+          this.currentMatchId = matchId;
+          this.emit('match-started', { matchId, wallTime: Date.now() });
+        }
+      }
+
+      // ── In-game moment (kept for the overlay's start-time) ──────────────────
+      // Real log line is "ChangeGameState: GameInProgress (7)" — the previous
+      // code matched "InProgress" with a leading space and never fired.
+      if (!this.gameStarted && chunk.includes('ChangeGameState: GameInProgress')) {
         this.gameStarted = true;
-        // Emit wall-clock time of the game start event
         this.emit('game-started', Date.now());
+      }
+
+      // ── Match end ───────────────────────────────────────────────────────────
+      // "Lobby <lobbyId> for Match <matchId> destroyed" closes the match.
+      const endMatch = [...chunk.matchAll(/for Match (\d+) destroyed/g)].pop();
+      if (endMatch) {
+        const matchId = Number(endMatch[1]);
+        if (matchId === this.currentMatchId) {
+          this.currentMatchId = null;
+          this.gameStarted = false;
+          this.emit('match-ended', { matchId });
+        }
       }
     } catch {
       // File may be locked by the game process — ignore silently

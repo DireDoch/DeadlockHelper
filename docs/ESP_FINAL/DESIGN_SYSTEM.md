@@ -264,10 +264,10 @@ Cartes de 96px de large. Adapter le nombre de colonnes si la taille des cartes c
 ### 7.2 Live Dashboard (PlayerCard)
 
 ```
-grid grid-cols-6 gap-4
+style="grid-template-columns: repeat(N, minmax(0,1fr)); grid-template-rows: repeat(2, minmax(0,1fr))"
 ```
 
-6 colonnes fixes — chaque équipe occupe une rangée complète. Triées par lane (yellow=0, blue=1, green=2).
+Colonnes **dynamiques** : `N = max(taille équipe 0, taille équipe 1)` → 6 pour 6v6 (12 joueurs), 4 pour 4v4 (8 joueurs). Chaque équipe occupe une rangée complète, triée par lane (yellow=0, blue=1, green=2) puis `player_slot`. Style inline car Tailwind ne génère pas de classe `grid-cols-N` dynamique.
 
 ### 7.3 Principe général
 
