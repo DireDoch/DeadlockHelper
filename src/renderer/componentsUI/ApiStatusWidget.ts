@@ -12,7 +12,7 @@ function renderContent(availability: number, isOpen: boolean): string {
 
   if (!isOpen) {
     return `
-      <div class="flex items-center justify-center gap-1" title="API ${availability}%">
+      <div class="w-full flex items-center justify-center gap-1" title="API ${availability}%">
         <span class="w-2 h-2 rounded-full ${dotClass} shrink-0"></span>
       </div>
     `;

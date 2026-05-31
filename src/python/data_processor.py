@@ -21,17 +21,18 @@ REQUEST_TIMEOUT = 5
 def check_api_status() -> Dict[str, Any]:
     """
     Perform a lightweight health check on the Deadlock API.
-    Uses /v2/heroes endpoint for minimal data transfer.
-    
+    Uses /v1/assets/heroes endpoint (assets.deadlock-api.com/v2/heroes is deprecated — 301 redirect).
+    GET https://api.deadlock-api.com/v1/assets/heroes → 200 array of heroes
+
     Returns:
         Dictionary containing API health status
     """
     conn = None
     try:
-        conn = http.client.HTTPSConnection(DEADLOCK_API_BASE, timeout=REQUEST_TIMEOUT)
+        conn = http.client.HTTPSConnection(DEADLOCK_API_V1_BASE, timeout=REQUEST_TIMEOUT)
         headers = {'Accept': 'application/json'}
-        
-        conn.request("GET", "/v2/heroes", headers=headers)
+
+        conn.request("GET", "/v1/assets/heroes", headers=headers)
         res = conn.getresponse()
         
         if res.status == 200:
