@@ -109,3 +109,8 @@ out/
 
 # [TEMP DEBUG] log de diagnostic détection de partie
 detection-debug.log
+
+# Website build output
+website/dist/
+website/.astro/
+website/node_modules/

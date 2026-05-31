@@ -1,0 +1,234 @@
+---
+const BASE = import.meta.env.BASE_URL.replace(/\/$/, '');
+const RELEASES = 'https://github.com/DireDoch/DeadlockHelper/releases/latest/download';
+const EXE_URL = `${RELEASES}/DeadlockHelper-Setup.exe`;
+const APPIMAGE_URL = `${RELEASES}/DeadlockHelper.AppImage`;
+const heroImg = `${BASE}/Profil.png`;
+const spotifyMain = `${BASE}/SpotifyParameters.png`;
+const spotifyWidget = `${BASE}/SpotifyWidget.png`;
+const spotifySidebar = `${BASE}/SideBarSpotifyParameters.png`;
+---
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DeadlockHelper — The Deadlock Companion App</title>
+  <meta name="description" content="One companion app for Deadlock: live hero detection, in-game overlay, built-in Spotify player, and a gamified Awards system." />
+</head>
+<body class="bg-[#0e1114] text-[#dedede] antialiased">
+
+  <!-- NAV -->
+  <nav class="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-8 py-4 bg-[#0e1114]/90 backdrop-blur-sm border-b border-[#2a2f35]">
+    <span class="font-bold text-white tracking-tight text-sm">
+      Deadlock<span class="text-[#b0dc38]">Helper</span>
+    </span>
+    <a
+      href="https://github.com/DireDoch/DeadlockHelper"
+      target="_blank"
+      rel="noopener noreferrer"
+      class="text-xs text-[#9ca3af] hover:text-[#b0dc38] transition-colors duration-200 font-medium"
+    >GitHub</a>
+  </nav>
+
+  <!-- HERO -->
+  <section class="relative min-h-screen flex flex-col items-center justify-center">
+    <div
+      class="absolute inset-0 bg-cover bg-center bg-no-repeat"
+      style={`background-image: url('${heroImg}');`}
+    ></div>
+    <div class="absolute inset-0 bg-[#0e1114]/80"></div>
+    <div class="absolute inset-0 bg-gradient-to-b from-[#0e1114]/50 via-transparent to-[#0e1114]"></div>
+
+    <div class="relative z-10 text-center px-6 max-w-2xl mx-auto">
+      <div class="inline-flex items-center gap-2 mb-6 px-3 py-1 bg-[#b0dc38]/10 border border-[#b0dc38]/20 rounded-full">
+        <span class="w-1.5 h-1.5 rounded-full bg-[#b0dc38] animate-pulse"></span>
+        <span class="text-[#b0dc38] text-xs font-mono tracking-widest uppercase">Open Source — Deadlock Companion</span>
+      </div>
+
+      <h1 class="text-6xl sm:text-7xl font-extrabold tracking-tight text-white mb-5 leading-none">
+        Deadlock<span class="text-[#b0dc38]">Helper</span>
+      </h1>
+
+      <p class="text-base text-[#9ca3af] mb-10 leading-relaxed max-w-md mx-auto">
+        Stats, music, and in-game overlay — all in one app. No more alt-tabbing between Spotify, your browser, and the game.
+      </p>
+
+      <div class="flex flex-col sm:flex-row gap-3 justify-center">
+        <a
+          href={EXE_URL}
+          class="inline-flex items-center justify-center gap-2 px-6 py-3 bg-[#b0dc38] hover:bg-[#cfea86] text-[#0e1114] font-semibold rounded-lg transition-colors duration-200 text-sm tracking-wide"
+        >
+          <svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path fill-rule="evenodd" d="M12 2.25a.75.75 0 01.75.75v11.69l3.22-3.22a.75.75 0 111.06 1.06l-4.5 4.5a.75.75 0 01-1.06 0l-4.5-4.5a.75.75 0 111.06-1.06l3.22 3.22V3a.75.75 0 01.75-.75zm-9 13.5a.75.75 0 01.75.75v2.25a1.5 1.5 0 001.5 1.5h13.5a1.5 1.5 0 001.5-1.5V16.5a.75.75 0 011.5 0v2.25a3 3 0 01-3 3H5.25a3 3 0 01-3-3V16.5a.75.75 0 01.75-.75z" clip-rule="evenodd"/>
+          </svg>
+          Download for Windows
+        </a>
+        <a
+          href={APPIMAGE_URL}
+          class="inline-flex items-center justify-center gap-2 px-6 py-3 bg-[#1a1f24] hover:bg-[#252525] border border-[#3a4048] hover:border-[#b0dc38]/40 text-[#dedede] font-semibold rounded-lg transition-colors duration-200 text-sm tracking-wide"
+        >
+          <svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path fill-rule="evenodd" d="M12 2.25a.75.75 0 01.75.75v11.69l3.22-3.22a.75.75 0 111.06 1.06l-4.5 4.5a.75.75 0 01-1.06 0l-4.5-4.5a.75.75 0 111.06-1.06l3.22 3.22V3a.75.75 0 01.75-.75zm-9 13.5a.75.75 0 01.75.75v2.25a1.5 1.5 0 001.5 1.5h13.5a1.5 1.5 0 001.5-1.5V16.5a.75.75 0 011.5 0v2.25a3 3 0 01-3 3H5.25a3 3 0 01-3-3V16.5a.75.75 0 01.75-.75z" clip-rule="evenodd"/>
+          </svg>
+          Download for Linux
+        </a>
+      </div>
+
+      <p class="mt-5 text-[#636261] text-xs">Windows 10+ &middot; Ubuntu 20.04+ &middot; Free and open source</p>
+    </div>
+  </section>
+
+  <!-- COMPANION CONCEPT -->
+  <section class="max-w-4xl mx-auto px-6 pt-4 pb-20 relative z-10">
+    <div class="bg-[#13181e] border border-[#2a2f35] rounded-xl p-8 sm:p-10">
+      <p class="text-[#b0dc38] text-xs font-mono tracking-widest uppercase mb-3">The idea</p>
+      <h2 class="text-2xl font-bold text-white mb-4 leading-snug">
+        One app. Everything you need alongside the game.
+      </h2>
+      <p class="text-[#9ca3af] leading-relaxed max-w-2xl">
+        DeadlockHelper is built around a single principle: you should never have to leave your game session to access the tools around it.
+        Profile stats, hero builds, match history, your music player — it all lives in one compact companion window.
+        No browser tabs, no separate Spotify app, no alt-tabbing.
+      </p>
+      <div class="mt-6 grid sm:grid-cols-3 gap-4">
+        <div class="flex items-start gap-3">
+          <div class="w-1 h-full min-h-[2rem] bg-[#b0dc38]/40 rounded-full shrink-0 mt-1"></div>
+          <div>
+            <p class="text-sm font-medium text-white mb-0.5">In-game overlay</p>
+            <p class="text-xs text-[#636261] leading-relaxed">Transparent overlay running on top of Deadlock with live match data.</p>
+          </div>
+        </div>
+        <div class="flex items-start gap-3">
+          <div class="w-1 h-full min-h-[2rem] bg-[#b0dc38]/40 rounded-full shrink-0 mt-1"></div>
+          <div>
+            <p class="text-sm font-medium text-white mb-0.5">Built-in music player</p>
+            <p class="text-xs text-[#636261] leading-relaxed">Control Spotify directly from the companion window, no external app required.</p>
+          </div>
+        </div>
+        <div class="flex items-start gap-3">
+          <div class="w-1 h-full min-h-[2rem] bg-[#b0dc38]/40 rounded-full shrink-0 mt-1"></div>
+          <div>
+            <p class="text-sm font-medium text-white mb-0.5">Profile & match stats</p>
+            <p class="text-xs text-[#636261] leading-relaxed">Hero builds, skill paths, match history, and Awards — all in one place.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SPOTIFY WIDGET -->
+  <section class="max-w-6xl mx-auto px-6 pb-20">
+    <div class="mb-10">
+      <p class="text-[#b0dc38] text-xs font-mono tracking-widest uppercase mb-3">Music player</p>
+      <h2 class="text-2xl font-bold text-white mb-3">Your music, inside the app</h2>
+      <p class="text-[#9ca3af] text-sm leading-relaxed max-w-xl">
+        The built-in Spotify widget lets you browse tracks, control playback, and switch devices without opening a separate application.
+        A compact mini-player stays accessible at all times from the sidebar.
+      </p>
+    </div>
+
+    <div class="grid lg:grid-cols-5 gap-5 items-start">
+
+      <!-- Main image -->
+      <div class="lg:col-span-3">
+        <div class="bg-[#13181e] border border-[#2a2f35] rounded-xl overflow-hidden">
+          <div class="px-4 pt-4 pb-1">
+            <p class="text-[#636261] text-xs font-mono uppercase tracking-wider mb-3">Full player</p>
+          </div>
+          <img
+            src={spotifyMain}
+            alt="Spotify full player with track info, progress bar, and device selection"
+            class="w-full object-cover"
+            loading="lazy"
+          />
+        </div>
+      </div>
+
+      <!-- Side images -->
+      <div class="lg:col-span-2 flex flex-col gap-5">
+
+        <div class="bg-[#13181e] border border-[#2a2f35] rounded-xl overflow-hidden">
+          <div class="px-4 pt-4 pb-1">
+            <p class="text-[#636261] text-xs font-mono uppercase tracking-wider mb-3">Compact widget</p>
+          </div>
+          <div class="flex items-center justify-center px-6 pb-5">
+            <img
+              src={spotifyWidget}
+              alt="Compact Spotify mini-player widget"
+              class="rounded-lg max-w-full"
+              loading="lazy"
+            />
+          </div>
+        </div>
+
+        <div class="bg-[#13181e] border border-[#2a2f35] rounded-xl overflow-hidden">
+          <div class="px-4 pt-4 pb-1">
+            <p class="text-[#636261] text-xs font-mono uppercase tracking-wider mb-3">Sidebar access</p>
+          </div>
+          <div class="flex items-center justify-center px-6 pb-5">
+            <img
+              src={spotifySidebar}
+              alt="Sidebar navigation showing Spotify Widget under Settings"
+              class="rounded-lg max-w-full"
+              loading="lazy"
+            />
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- FEATURES GRID -->
+  <section class="max-w-4xl mx-auto px-6 pb-28">
+    <div class="mb-10">
+      <p class="text-[#b0dc38] text-xs font-mono tracking-widest uppercase mb-3">Game features</p>
+      <h2 class="text-2xl font-bold text-white">Built for competitive play</h2>
+    </div>
+    <div class="grid sm:grid-cols-2 gap-5">
+
+      <div class="bg-[#13181e] border border-[#2a2f35] hover:border-[#b0dc38]/30 rounded-xl p-7 transition-colors duration-300">
+        <div class="w-9 h-9 rounded-lg bg-[#b0dc38]/10 flex items-center justify-center mb-5">
+          <svg class="w-5 h-5 text-[#b0dc38]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="3" y="3" width="18" height="18" rx="2"/>
+            <path d="M3 9h18M9 21V9"/>
+          </svg>
+        </div>
+        <h3 class="text-sm font-semibold text-white mb-2 uppercase tracking-wider">OCR Live Roster — Zero Delay</h3>
+        <p class="text-sm text-[#9ca3af] leading-relaxed">
+          Detects all 12 heroes from the selection screen without any manual input. The enemy roster appears in the overlay before the match even starts.
+        </p>
+      </div>
+
+      <div class="bg-[#13181e] border border-[#2a2f35] hover:border-[#cfea86]/30 rounded-xl p-7 transition-colors duration-300">
+        <div class="w-9 h-9 rounded-lg bg-[#cfea86]/10 flex items-center justify-center mb-5">
+          <svg class="w-5 h-5 text-[#cfea86]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+          </svg>
+        </div>
+        <h3 class="text-sm font-semibold text-white mb-2 uppercase tracking-wider">Gamified Awards</h3>
+        <p class="text-sm text-[#9ca3af] leading-relaxed">
+          Analyzes your last 50 matches and unlocks Awards based on your real performance. Each reward links directly to the matches that triggered it.
+        </p>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- FOOTER -->
+  <footer class="border-t border-[#2a2f35] py-6 text-center">
+    <p class="text-[#636261] text-xs">
+      DeadlockHelper &mdash; ESP School Project &middot;
+      <a
+        href="https://github.com/DireDoch/DeadlockHelper"
+        target="_blank"
+        rel="noopener noreferrer"
+        class="text-[#b0dc38] hover:text-[#cfea86] transition-colors duration-200"
+      >DireDoch</a>
+    </p>
+  </footer>
+
+</body>
+</html>

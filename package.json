@@ -14,29 +14,57 @@
     "build:vite": "vite build --config vite.renderer.config.mjs && vite build --config vite.main.config.ts && vite build --config vite.preload.config.ts",
     "build:linux": "npm run build:vite && electron-builder --linux",
     "build:linux:appimage": "npm run build:vite && electron-builder --linux AppImage",
-    "build:linux:deb": "npm run build:vite && electron-builder --linux deb"
+    "build:linux:deb": "npm run build:vite && electron-builder --linux deb",
+    "dist": "npm run build:vite && electron-builder"
   },
   "build": {
     "appId": "com.diredoch.deadlockhelper",
     "productName": "DeadlockHelper",
     "asar": true,
-    "extraResources": [
-      { "from": "src/python", "to": "python", "filter": ["**/*"] }
-    ],
     "files": [
       ".vite/**/*",
       "package.json"
     ],
+    "win": {
+      "target": [{"target": "nsis", "arch": ["x64"]}],
+      "icon": "src/renderer/assets/icon.png",
+      "artifactName": "${productName}-Setup.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    },
     "linux": {
-      "target": ["AppImage", "deb", "rpm"],
+      "target": [
+        "AppImage",
+        "deb",
+        "rpm"
+      ],
       "category": "Game",
-      "icon": "src/renderer/assets/icon.png"
+      "icon": "src/renderer/assets/icon.png",
+      "artifactName": "${productName}.${ext}"
+    },
+    "publish": {
+      "provider": "github",
+      "releaseType": "draft"
     },
     "deb": {
-      "depends": ["python3", "python3-requests", "libnotify4", "libxtst6", "libnss3"]
+      "depends": [
+        "python3",
+        "python3-requests",
+        "libnotify4",
+        "libxtst6",
+        "libnss3"
+      ]
     },
     "rpm": {
-      "depends": ["python3", "python3-requests", "libnotify", "libXtst", "nss"]
+      "depends": [
+        "python3",
+        "python3-requests",
+        "libnotify",
+        "libXtst",
+        "nss"
+      ]
     }
   },
   "keywords": [],
