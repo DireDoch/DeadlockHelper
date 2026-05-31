@@ -11,7 +11,7 @@
     "make": "electron-forge make",
     "publish": "electron-forge publish",
     "lint": "eslint --ext .ts,.tsx .",
-    "build:vite": "vite build --config vite.renderer.config.mjs && vite build --config vite.main.config.ts && vite build --config vite.preload.config.ts",
+    "build:vite": "vite build --config vite.main-window.config.mjs && vite build --config vite.overlay-window.config.mjs && vite build --config vite.main.config.ts && vite build --config vite.preload.config.ts && vite build --config vite.overlay-preload.config.ts",
     "build:linux": "npm run build:vite && electron-builder --linux",
     "build:linux:appimage": "npm run build:vite && electron-builder --linux AppImage",
     "build:linux:deb": "npm run build:vite && electron-builder --linux deb",

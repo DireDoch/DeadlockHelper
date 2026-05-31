@@ -9,6 +9,10 @@ export default defineConfig({
       formats: ['cjs'],
       fileName: () => 'overlay-preload.js',
     },
+    rollupOptions: {
+      external: (id) => !id.startsWith('.') && !path.isAbsolute(id),
+    },
+    target: 'node20',
     outDir: '.vite/build',
     emptyOutDir: false,
   },

@@ -101,6 +101,9 @@ typings/
 # Electron-Forge
 out/
 
+# electron-builder output
+dist/
+
 # BRV (ByteRover)
 .brv/
 
