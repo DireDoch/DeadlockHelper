@@ -1,3 +1,9 @@
+# Python (ocr-worker)
+ocr-worker/venv/
+**/__pycache__/
+*.pyc
+.EasyOCR/
+
 # Logs
 logs
 *.log
