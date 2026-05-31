@@ -163,6 +163,10 @@ export function getOverlaySettings(): OverlaySettings {
   return overlayStore.get('settings');
 }
 
+export function patchOverlaySettings(patch: Partial<OverlaySettings>): void {
+  overlayStore.set('settings', { ...overlayStore.get('settings'), ...patch });
+}
+
 export function setupOverlayIpcHandlers(): void {
   ipcMain.handle('overlay:get-settings', () => overlayStore.get('settings'));
 

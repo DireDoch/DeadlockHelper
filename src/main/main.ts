@@ -17,8 +17,10 @@ import {
   destroyOverlayWindow,
   sendToOverlay,
   getOverlaySettings,
+  patchOverlaySettings,
   setupOverlayIpcHandlers,
 } from './overlay-window';
+import { ocrWorker } from './ocr-worker';
 import {
   getKwinOverlayRuleStatus,
   installKwinOverlayRule,
@@ -125,6 +127,13 @@ let matchSource: 'log' | 'api' | null = null;
 
 // Log watcher instance for condebug overlay support
 const logWatcher = new LogWatcher();
+
+// Démarre le worker OCR uniquement si le toggle espOcrEnabled est activé.
+function startOcrIfEnabled(): void {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  if (getOverlaySettings().espOcrEnabled !== true) return;
+  ocrWorker.start(mainWindow);
+}
 
 /**
  * Record API call result and update availability
@@ -321,6 +330,8 @@ function setupLogWatcherListeners(): void {
       playerAccountId: 0,
       enemyHeroIds: [],
     });
+    // ESP (Live Roster OCR) — démarre le worker si le toggle est actif.
+    startOcrIfEnabled();
     // [TEMP DEBUG] Phase 0: can the API spectate this normal match for a live feed?
     probeLiveBroadcast(matchId);
   });
@@ -332,6 +343,7 @@ function setupLogWatcherListeners(): void {
     emitMatchEnded(lastKnownMatchId);
     lastKnownMatchId = null;
     matchSource = null;
+    ocrWorker.stop();
     sendToOverlay('overlay:match-ended');
     if (lastGameState !== 'GAME_MENU' && lastGameRunning) {
       lastGameState = 'GAME_MENU';
@@ -359,6 +371,7 @@ async function checkDeadlockAndMatchStatus(): Promise<void> {
       emitMatchEnded(lastKnownMatchId);
       destroyOverlayWindow();
       logWatcher.stop();
+      ocrWorker.stop();
       syncKwinOverlayFix(false); // remove the rules now that the game is gone
     }
     lastGameRunning = false;
@@ -453,6 +466,7 @@ async function checkDeadlockAndMatchStatus(): Promise<void> {
       playerAccountId: accountId,
       enemyHeroIds,
     });
+    startOcrIfEnabled();
     return;
   }
 
@@ -463,6 +477,7 @@ async function checkDeadlockAndMatchStatus(): Promise<void> {
     detectionLog('MATCH TERMINÉ via API -> emit game:match-ended', { lastKnownMatchId }); // [TEMP DEBUG]
     lastKnownMatchId = null;
     matchSource = null;
+    ocrWorker.stop();
     logWatcher.resetGameState();
     sendToOverlay('overlay:match-ended');
     if (lastGameState !== 'GAME_MENU') {
@@ -640,6 +655,19 @@ function setupIpcHandlers(): void {
   ipcMain.handle('overlay:kwin-fix-apply', () => installKwinOverlayRule());
   ipcMain.handle('overlay:kwin-fix-remove', () => removeKwinOverlayRule());
 
+  // ESP (Live Roster OCR) toggle — stocké dans overlay-settings (electron-store).
+  ipcMain.handle('esp:get-enabled', () => getOverlaySettings().espOcrEnabled ?? false);
+
+  ipcMain.handle('esp:set-enabled', (_event, enabled: boolean) => {
+    patchOverlaySettings({ espOcrEnabled: enabled });
+    if (enabled && lastGameState === 'GAME_IN_MATCH') {
+      startOcrIfEnabled();
+    } else if (!enabled) {
+      ocrWorker.stop();
+    }
+    return { success: true, espOcrEnabled: enabled };
+  });
+
   // Launch Deadlock via Steam protocol (respects user's saved launch options)
   // Steam App ID 1422450 = Deadlock
   ipcMain.handle('game:launch-deadlock', async () => {
@@ -668,6 +696,7 @@ app.on('ready', () => {
 // synchronously before its (async) reconfigure, so the rule is gone from disk
 // even if the process exits before reconfigure completes.
 app.on('before-quit', () => {
+  ocrWorker.stop();
   if (lastGameRunning && getOverlaySettings().autoKwinFix !== false) {
     removeKwinOverlayRule().catch(() => {});
   }

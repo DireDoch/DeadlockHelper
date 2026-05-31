@@ -37,6 +37,7 @@
 import type {
   Player, MatchData, SteamProfile, HeroData,
   HeroStats, MMREntry, RankDistributionEntry, RankAsset, MatchHistoryEntry,
+  OcrRoster, OcrPlayer,
 } from '../../../lib/types';
 import { PlayerCard } from '../../componentsUI/PlayerCard';
 
@@ -71,6 +72,10 @@ export class LiveDashboardPage {
   // so we re-attempt the roster fetch on a timer while in the LIVE_PENDING state.
   private livePollTimer: ReturnType<typeof setTimeout> | null = null;
 
+  // Dernier roster reçu du worker OCR (ocr-worker/main.py → IPC ocr:roster-updated).
+  // Utilisé comme fallback visuel en LIVE_PENDING quand l'API n'a pas encore ingéré la partie.
+  private ocrRoster: OcrRoster | null = null;
+
   // Shared enrichment data (fetched once per match load)
   private rankDistribution: RankDistributionEntry[] = [];
   private rankAssets: RankAsset[] = [];
@@ -80,6 +85,14 @@ export class LiveDashboardPage {
     this.isDemoMode = localStorage.getItem('demoModeEnabled') === 'true';
     this.renderCurrentState();
     this.syncStateFromMain();
+    // Écoute le worker OCR — reçu dès qu'on presse ESC en partie (ocr-worker/main.py, poll 1,5s).
+    // Si l'API n'a pas encore ingéré la partie (LIVE_PENDING), affiche les tuiles OCR immédiatement.
+    window.api?.onOcrRosterUpdated?.((roster: OcrRoster) => {
+      this.ocrRoster = roster;
+      if (this.currentGameState === 'GAME_IN_MATCH' && !this.isLoading && !this.matchData) {
+        this.renderOcrRosterView(roster);
+      }
+    });
   }
 
   handleGameStateChanged(state: GameState, matchId?: number): void {
@@ -88,6 +101,7 @@ export class LiveDashboardPage {
       localStorage.setItem('detectedMatchId', this.detectedMatchId);
     } else if (state === 'GAME_CLOSED') {
       this.detectedMatchId = null;
+      this.ocrRoster = null;
       localStorage.removeItem('detectedMatchId');
     }
 
@@ -239,9 +253,14 @@ export class LiveDashboardPage {
    * LIVE_PENDING: a match is detected but the community API has no data for it yet
    * (it ingests during/after the match, not in real time). Shown until a poll
    * succeeds. See glossary "Live Roster Availability".
+   * Si le worker OCR a déjà un roster, l'affiche directement au lieu de l'écran d'attente.
    */
   private renderLivePending(matchId: string): void {
     if (!this.container) return;
+    if (this.ocrRoster && (this.ocrRoster.myTeam.length > 0 || this.ocrRoster.enemyTeam.length > 0)) {
+      this.renderOcrRosterView(this.ocrRoster);
+      return;
+    }
     this.container.innerHTML = `
       <div class="bg-charcoal-100 min-h-screen h-screen overflow-hidden flex flex-col items-center justify-center text-center px-8">
         <div class="flex items-center gap-2 mb-6">
@@ -249,12 +268,76 @@ export class LiveDashboardPage {
           <span class="text-frosted-mint-500 text-sm font-medium">Partie détectée — Match ID ${matchId}</span>
         </div>
         <h1 class="text-2xl font-bold text-white mb-3">Données indisponibles en direct</h1>
-        <p class="text-grey-400 text-sm max-w-md mb-10">
+        <p class="text-grey-400 text-sm max-w-md mb-6">
           L'API publie les données des joueurs pendant / après la partie, pas en temps réel.
           Ce tableau se remplira automatiquement dès qu'elles seront disponibles.
         </p>
+        <p class="text-grey-500 text-xs mb-10">
+          ESP actif — ouvrez l'onglet PLAYERS dans le jeu (ESC) pour afficher le roster immédiatement.
+        </p>
         <div class="grid grid-cols-4 gap-2 opacity-20 w-full max-w-3xl">
           ${Array(8).fill(0).map(() => `<div class="bg-charcoal-200 rounded-lg animate-pulse" style="height:90px;"></div>`).join('')}
+        </div>
+      </div>
+    `;
+  }
+
+  /**
+   * Vue OCR fallback : roster issu de l'OCR (ocr-worker/main.py) quand l'API n'a pas de données.
+   * Affiche les héros (nom + pseudo Steam) sans statistiques — celles-ci restent indisponibles
+   * car le pseudo Steam n'est pas résolvable en account_id (voir docs/ESP_FINAL/OCR_WORKER.md §2.1).
+   * L'icône héros utilise le cache heroCache si disponible, sinon un placeholder.
+   * Source icône: GET https://api.deadlock-api.com/v1/assets/heroes/{heroId} → images.icon_image_small_webp
+   */
+  private renderOcrRosterView(roster: OcrRoster): void {
+    if (!this.container) return;
+
+    const heroTile = (p: OcrPlayer, side: 'ally' | 'enemy'): string => {
+      const cached = p.heroId !== null ? this.heroCache.get(p.heroId) : null;
+      const iconUrl = cached?.images?.icon_image_small_webp ?? cached?.images?.icon_image_small ?? null;
+      const accentClass = side === 'ally' ? 'border-frosted-mint-500/40' : 'border-red-500/40';
+      const confidencePct = Math.round(p.heroScore);
+      return `
+        <div class="bg-charcoal-200 rounded-lg border ${accentClass} border p-2 flex items-center gap-2 min-w-0">
+          <div class="w-10 h-10 rounded bg-charcoal-300 shrink-0 overflow-hidden flex items-center justify-center text-grey-500 text-xs">
+            ${iconUrl
+              ? `<img src="${iconUrl}" alt="${p.heroName}" class="w-full h-full object-cover" />`
+              : `<span>${p.heroName.slice(0, 2)}</span>`}
+          </div>
+          <div class="min-w-0 flex-1">
+            <div class="text-white text-sm font-medium truncate">${p.heroName === 'unknown_hero' ? '???' : p.heroName}</div>
+            <div class="text-grey-400 text-xs truncate">${p.steamName || '—'}</div>
+          </div>
+          <span class="text-grey-600 text-xs font-mono shrink-0">${confidencePct}%</span>
+        </div>`;
+    };
+
+    const teamSection = (players: OcrPlayer[], label: string, side: 'ally' | 'enemy'): string => {
+      if (players.length === 0) return '';
+      const labelClass = side === 'ally' ? 'text-frosted-mint-400' : 'text-red-400';
+      return `
+        <div>
+          <h2 class="text-xs font-semibold uppercase tracking-widest ${labelClass} mb-2 px-1">${label}</h2>
+          <div class="space-y-1.5">${players.map((p) => heroTile(p, side)).join('')}</div>
+        </div>`;
+    };
+
+    this.container.innerHTML = `
+      <div class="bg-charcoal-100 min-h-screen h-screen overflow-hidden flex flex-col p-4">
+        <div class="shrink-0 mb-4 flex items-center gap-3 flex-wrap">
+          <div class="flex items-center gap-1.5">
+            <span class="w-2 h-2 rounded-full bg-frosted-mint-500 animate-pulse"></span>
+            <span class="text-frosted-mint-500 text-xs font-medium uppercase tracking-wider">ESP Live Scan</span>
+          </div>
+          <h1 class="text-lg font-bold text-white">Roster détecté</h1>
+          <span class="ml-auto text-grey-500 text-xs">Aucune stat — pseudo Steam non résolvable</span>
+        </div>
+        <div class="flex-1 grid grid-cols-2 gap-4 overflow-auto min-h-0">
+          ${teamSection(roster.myTeam, 'Mon équipe', 'ally')}
+          ${teamSection(roster.enemyTeam, 'Équipe ennemie', 'enemy')}
+        </div>
+        <div class="shrink-0 mt-3 text-center text-grey-600 text-xs">
+          Ouvrez l'onglet PLAYERS dans le jeu (ESC) pour rafraîchir · l'API se remplira automatiquement
         </div>
       </div>
     `;

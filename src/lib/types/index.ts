@@ -307,6 +307,23 @@ export interface ItemData {
   [key: string]: any;
 }
 
+// ── OCR Roster types (worker ocr-worker/main.py → IPC ocr:roster-updated) ────
+
+export interface OcrPlayer {
+  steamName: string;       // best-effort display only — pas d'account_id résolvable
+  heroId: number | null;   // null si score fuzzy < 60
+  heroName: string;        // "unknown_hero" si non reconnu
+  heroScore: number;       // 0–100 (score thefuzz)
+}
+
+export interface OcrRoster {
+  type: 'roster';
+  ts: number;
+  source: string;
+  myTeam: OcrPlayer[];
+  enemyTeam: OcrPlayer[];
+}
+
 // ── Overlay types ─────────────────────────────────────────────────────────────
 
 export interface OverlaySettings {
@@ -319,6 +336,8 @@ export interface OverlaySettings {
   showItemSuggestions: boolean;
   // Auto-apply the KWin keep-above fix when Deadlock launches (KDE/Wayland). Default true.
   autoKwinFix?: boolean;
+  // ESP (Live Roster OCR) — spawne ocr-worker/main.py sur GAME_IN_MATCH.
+  espOcrEnabled?: boolean;
   // Last position saved after a user drag (takes priority over corner on next launch)
   lastX?: number;
   lastY?: number;

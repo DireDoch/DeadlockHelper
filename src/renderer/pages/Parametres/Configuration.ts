@@ -20,6 +20,7 @@ const DEFAULT_OVERLAY: OverlaySettings = {
 export class ConfigurationPage {
   private container: HTMLElement | null = null;
   private demoModeEnabled = false;
+  private espOcrEnabled = false;
   private steamProfile: SteamProfile = null;
   private overlaySettings: OverlaySettings = { ...DEFAULT_OVERLAY };
   // KWin keep-above fix status (KDE Plasma + Wayland only); null until loaded
@@ -30,6 +31,7 @@ export class ConfigurationPage {
     this.container.addEventListener('click', this.boundHandleContainerClick);
     Promise.all([
       this.loadDemoModeState(),
+      this.loadEspOcrState(),
       this.loadSteamProfile(),
       this.loadOverlaySettings(),
       this.loadKwinFixStatus(),
@@ -41,6 +43,7 @@ export class ConfigurationPage {
     if (!this.container) return;
     Promise.all([
       this.loadDemoModeState(),
+      this.loadEspOcrState(),
       this.loadSteamProfile(),
       this.loadOverlaySettings(),
       this.loadKwinFixStatus(),
@@ -137,6 +140,40 @@ export class ConfigurationPage {
     }
   }
 
+  private async loadEspOcrState(): Promise<void> {
+    try {
+      this.espOcrEnabled = (await window.api?.getEspEnabled?.()) ?? false;
+    } catch {
+      this.espOcrEnabled = false;
+    }
+  }
+
+  private async toggleEspOcr(enabled: boolean): Promise<void> {
+    try {
+      await window.api?.setEspEnabled?.(enabled);
+      this.espOcrEnabled = enabled;
+      const toggle = document.getElementById('esp-ocr-toggle');
+      const indicator = document.getElementById('esp-ocr-indicator');
+      if (toggle) {
+        toggle.setAttribute('aria-checked', String(enabled));
+        toggle.classList.toggle('bg-frosted-mint-500', enabled);
+        toggle.classList.toggle('bg-grey-600', !enabled);
+        const thumb = toggle.querySelector('span');
+        if (thumb) {
+          thumb.classList.toggle('translate-x-5', enabled);
+          thumb.classList.toggle('translate-x-0', !enabled);
+        }
+      }
+      if (indicator) {
+        indicator.textContent = enabled ? 'Actif' : 'Inactif';
+        indicator.classList.toggle('text-frosted-mint-500', enabled);
+        indicator.classList.toggle('text-grey-400', !enabled);
+      }
+    } catch (error) {
+      console.error('Failed to toggle ESP OCR:', error);
+    }
+  }
+
   private async toggleDemoMode(enabled: boolean): Promise<void> {
     try {
       this.demoModeEnabled = enabled;
@@ -210,6 +247,45 @@ export class ConfigurationPage {
             </div>
           </div>
           
+          <!-- ESP (Live Roster OCR) -->
+          <div class="bg-charcoal-200 rounded-lg p-6 border border-grey-600 mb-6">
+            <div class="flex items-start justify-between gap-4">
+              <div class="flex-1">
+                <h3 class="text-lg font-semibold text-white mb-2">ESP — Roster Live (OCR)</h3>
+                <p class="text-sm text-grey-400 mb-1">
+                  Lit le panneau <span class="font-mono text-frosted-mint-400">ESC › PLAYERS</span>
+                  via capture d'écran (EasyOCR) et affiche le roster dans le Live Dashboard
+                  quand les données API ne sont pas encore disponibles.
+                </p>
+                <p class="text-xs text-grey-500 mb-1">
+                  Requiert Spectacle installé (<code class="text-grey-400">sudo pacman -S spectacle</code>).
+                  Le scan démarre automatiquement à l'entrée en partie (poll toutes les 1,5 s) —
+                  ouvrez l'onglet PLAYERS dans le jeu pour déclencher la lecture.
+                </p>
+                <p class="text-xs mt-1">
+                  <span id="esp-ocr-indicator" class="font-semibold ${this.espOcrEnabled ? 'text-frosted-mint-500' : 'text-grey-400'}">
+                    ${this.espOcrEnabled ? 'Actif' : 'Inactif'}
+                  </span>
+                </p>
+              </div>
+              <button
+                id="esp-ocr-toggle"
+                role="switch"
+                aria-checked="${this.espOcrEnabled}"
+                aria-label="Toggle ESP OCR"
+                class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-frosted-mint-500 focus:ring-offset-2 focus:ring-offset-charcoal-200 ${
+                  this.espOcrEnabled ? 'bg-frosted-mint-500' : 'bg-grey-600'
+                }"
+              >
+                <span
+                  class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                    this.espOcrEnabled ? 'translate-x-5' : 'translate-x-0'
+                  }"
+                ></span>
+              </button>
+            </div>
+          </div>
+
           <!-- Compte Steam -->
           <div class="bg-charcoal-200 rounded-lg p-6 border border-grey-600 mb-6">
             <h3 class="text-lg font-semibold text-white mb-2">
@@ -374,6 +450,13 @@ export class ConfigurationPage {
     if (toggle) {
       toggle.addEventListener('click', () => {
         this.toggleDemoMode(!this.demoModeEnabled);
+      });
+    }
+
+    const espToggle = document.getElementById('esp-ocr-toggle');
+    if (espToggle) {
+      espToggle.addEventListener('click', () => {
+        this.toggleEspOcr(!this.espOcrEnabled);
       });
     }
 

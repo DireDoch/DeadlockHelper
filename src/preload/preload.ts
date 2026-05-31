@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import type { GameState } from '../lib/types';
+import type { GameState, OcrRoster } from '../lib/types';
 
 // Expose protected methods that allow the renderer process to use
 // the ipcRenderer without exposing the entire object
@@ -118,6 +118,18 @@ contextBridge.exposeInMainWorld('api', {
   launchDeadlock: () =>
     ipcRenderer.invoke('game:launch-deadlock'),
 
+  // ESP (Live Roster OCR) — toggle persisté dans overlay-settings.
+  // GET https://api.deadlock-api.com/v1/assets/heroes/{heroId} pour les icônes côté renderer.
+  getEspEnabled: (): Promise<boolean> =>
+    ipcRenderer.invoke('esp:get-enabled'),
+
+  setEspEnabled: (enabled: boolean): Promise<{ success: boolean; espOcrEnabled: boolean }> =>
+    ipcRenderer.invoke('esp:set-enabled', enabled),
+
+  onOcrRosterUpdated: (callback: (roster: OcrRoster) => void): void => {
+    ipcRenderer.on('ocr:roster-updated', (_event, roster: OcrRoster) => callback(roster));
+  },
+
   // Runtime platform — exposed so renderers can detect OS without Node.js globals
   platform: process.platform,
 });
@@ -176,6 +188,12 @@ declare global {
       getKwinOverlayFixStatus: () => Promise<{ applicable: boolean; installed: boolean; rulesPath: string; reason?: string }>;
       applyKwinOverlayFix: () => Promise<{ success: boolean; installed: boolean; error?: string; backupPath?: string }>;
       removeKwinOverlayFix: () => Promise<{ success: boolean; installed: boolean; error?: string }>;
+      // ESP (Live Roster OCR)
+      getEspEnabled: () => Promise<boolean>;
+      setEspEnabled: (enabled: boolean) => Promise<{ success: boolean; espOcrEnabled: boolean }>;
+      onOcrRosterUpdated: (callback: (roster: import('../lib/types').OcrRoster) => void) => void;
+      launchDeadlock: () => Promise<{ success: boolean }>;
+      platform: NodeJS.Platform;
     };
     spotify: {
       login: () => Promise<{ success: boolean; displayName?: string; error?: string }>;
