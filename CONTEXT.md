@@ -76,10 +76,28 @@ The richest tab. A team-comparison block (5 advantage bars: Hero Damage=`player_
 The hover tooltip on any item icon in the Match Detail Panel. Shows the item name, its stat properties (from the items cache), and a Tier badge on the **I–IV** scale via the shared `renderItemTierBadge` util. (Deadlock has four item tiers; the spec's "Tier I–VI" does not exist.)
 
 ## Lane Color
-A Normal 6v6 match has three lanes; `assigned_lane` values map `1` = **blue**, `4` = **yellow**, `6` = **green** (already encoded in `types/index.ts`), each lane a 2v2. The lane filter is built **data-driven** from the distinct `assigned_lane` values actually present in a match (1–3), so other modes (e.g. Street Brawl 4v4) degrade gracefully rather than assuming three. Lane color tints the hero-icon borders in the Lane Stats hero bar.
+A Normal 6v6 match has three lanes; `assigned_lane` values map `1` = **blue**, `4` = **yellow**, `6` = **green** (already encoded in `types/index.ts`), each lane a 2v2. Lane color tints the hero-icon borders in the Lane Stats hero bar. **Caveat (verified 2026-05-30 against live API):** the distinct `assigned_lane` count is **not** a reliable mode discriminator — a Street Brawl 4v4 still reports `assigned_lane` values `[1,4,6]`, so a "count the lanes present" heuristic wrongly treats it as a three-lane match. Lane *meaning* must be gated on [[street-brawl]] (`game_mode`), not on the lanes present. On the [[live-dashboard]] this is why lane color is suppressed by game mode, not by lane count.
 
 ## Match Lane Stats Tab
 Compares an arbitrary **selected set of left players vs a selected set of right players** (asymmetric N-vs-M allowed) at a chosen time snapshot. The selector buttons are generated from the match's actual `stats[]` `time_stamp_s` values (rounded to minutes — typically 3/6/9/12/15/20/25/…/end, no 0m); default = final snapshot. On open, the profile player's [[lane-color]] is preselected (their 2v2). Lane-color buttons are presets that replace the selection with that lane's players (both teams); manual hero toggles refine it. Each metric reads the cumulative `stats[]` value at the selected snapshot: Kills=`kills`, Souls=`net_worth`, Last Hits=`creep_kills`, Denies=`denies` (count), Damage=`player_damage`, Obj Damage=`boss_damage`, Shots Hit %=`shots_hit/(shots_hit+shots_missed)`, Level=`level`. The leading side per metric is bolded with an advantage gauge.
+
+## Live Dashboard
+The page shown while a Deadlock match is detected (or, absent a live match, for the logged-in player's most recent match). Presents every player in the match as a [[player-tile]], laid out in two rows — top row = `team` 0, bottom row = `team` 1 — with the column count equal to the team size (**6** columns in Normal, **4** in [[street-brawl]]). The same tile is reused for both modes. The visible [[game-mode]] is shown as a header badge. Roster source depends on liveness: a [[demo-mode]] or historical match resolves via the bulk metadata path; a live-detected match is best-effort (see [[live-roster-availability]]).
+
+## Player Tile
+A single player's card on the [[live-dashboard]] (component `PlayerCard`). Shows only: player name (links to Steam profile), hero portrait + games-played + win% on that hero, average K/D/A + KDA ratio, rank badge + name + Top%, and 12H / 30D activity (games · wins). Mode-agnostic. [[lane-color]] (left-border + dot) is shown in Normal mode and **suppressed** in [[street-brawl]], because Street Brawl lanes are meaningless even though `assigned_lane` is populated.
+
+## Game Mode
+The Normal-vs-Street-Brawl axis of a match, from the API `game_mode` field. `1` / `"Normal"` = Normal (6v6, three lanes); `4` / `"StreetBrawl"` = [[street-brawl]] (4v4, one lane). Distinct from `match_mode` (the Unranked/Ranked/etc. axis), which the dashboard does not key behaviour on. The dashboard accepts both the integer form (per-match metadata) and the PascalCase string form (bulk metadata).
+
+## Street Brawl
+A 4v4 Deadlock game mode (`game_mode` `4` / `"StreetBrawl"`) where all players share a single lane. Renders 4 tiles per team on the [[live-dashboard]]. Lane distinctions carry no meaning here, so [[lane-color]] is suppressed.
+
+## Demo Mode
+A Configuration toggle (`demoModeEnabled`, formerly `mockModeEnabled` — "Mock" is **not** the canonical term) that makes the [[live-dashboard]] load real *historical* match IDs from a fixed rotation instead of waiting for a live match, so the UI can be exercised on demand. The rotation includes at least one [[street-brawl]] match (`84553413`) so the 4v4 layout is testable. The Refresh control advances to the next match in the rotation.
+
+## Live Roster Availability
+The fact that the community API is **post-match ingested**, so a match that is currently in progress has no metadata available from the bulk endpoint, and `/v1/matches/active` (the only live roster source) is unreliable in practice (observed empty for an entire real match, 2026-05-30). Consequence: the [[live-dashboard]] reliably renders [[demo-mode]] / historical matches, while a freshly-detected live match is best-effort and may show a "données indisponibles en direct" pending state until the match is ingested. See [[adr-0004]] and the overlay's VAC-safe-source constraint.
 
 ## Game Overlay Window
 A second Electron `BrowserWindow` (`overlayWindow`) created in `main.ts` when `GAME_IN_MATCH` is detected and hidden/destroyed at `GAME_MENU`/`GAME_CLOSED`. Properties: `frame: false`, `transparent: true`, `alwaysOnTop: true`, `setIgnoreMouseEvents(true)` except on interactive zones. Rendered by a dedicated `overlay.html` in vanilla TypeScript. Requires the game to run in **Borderless Windowed** mode on Linux (fullscreen exclusive blocks Electron's `alwaysOnTop`). See [[mid-boss-timer]], [[urn-timer]], [[souls-per-min]], [[item-suggestions]].

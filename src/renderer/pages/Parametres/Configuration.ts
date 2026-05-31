@@ -184,7 +184,7 @@ export class ConfigurationPage {
                   Mode Démo
                 </h3>
                 <p class="text-sm text-grey-400 mb-1">
-                  Simule une partie en utilisant de vrais Match IDs (80659633, 83547202, 80457157). Le bouton Refresh dans le Live Dashboard fait défiler cycliquement ces parties.
+                  Simule une partie en utilisant de vrais Match IDs : 80659633, 84419762, 80457157 (Normal 6v6) et 84553413 (Street Brawl 4v4). Le bouton Refresh dans le Live Dashboard fait défiler cycliquement ces parties.
                 </p>
                 <p class="text-xs text-grey-500">
                   <span id="mock-mode-indicator" class="font-semibold ${this.demoModeEnabled ? 'text-frosted-mint-500' : 'text-grey-400'}">

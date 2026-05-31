@@ -17,14 +17,21 @@
  *
  * DATA FLOW (renderer-side fetches)
  * ──────────────────────────────────
- * 1. Python (IPC) → /v1/matches/{id}/metadata   → 12 players + hero_ids
+ * 0. ROSTER (source depends on liveness — see ADR-0004 + docs/live-dashboard-spec.md):
+ *    • Demo / historical → GET /v1/matches/metadata?match_ids={id}&include_info=true&include_player_info=true
+ *      (BULK endpoint, 10 req/min IP, Clickhouse-backed — no Steam 503). Returns a flat
+ *      JSON array with PascalCase enums ("StreetBrawl", "Team0") → normalizeMatchInfo().
+ *    • Live-detected match → GET /v1/matches/active?account_ids={me} (real-time roster:
+ *      account_id/hero_id/team only). Often empty mid-match → LIVE_PENDING state + poll.
+ *    • Fallback → electron-store cached match (getCachedMatch).
+ * 1. ↳ yields players[{account_id, player_slot, hero_id, team, assigned_lane}] + game_mode
  * 2. fetch batch  → /v1/players/steam?account_ids=…   → Steam names + 30d game count
  * 3. fetch each   → /v1/assets/heroes/{id}  → hero name + icon_image_small_webp (one per unique hero)
  * 4. fetch batch  → /v1/players/hero-stats?account_ids=…     → win%, avg KDA per hero
  * 5. fetch batch  → /v1/players/mmr?account_ids=…            → individual badge level
  * 6. fetch once   → /v1/assets/ranks                         → rank names + badge images
  * 7. fetch once   → /v1/players/mmr/distribution             → global distribution for Top%
- * 8. fetch ×12    → /v1/players/{id}/match-history (parallel) → 12H / 30D wins
+ * 8. fetch ×N     → /v1/players/{id}/match-history (parallel) → 12H / 30D wins
  */
 
 import type {
@@ -38,8 +45,10 @@ type GameState = 'GAME_CLOSED' | 'GAME_MENU' | 'GAME_IN_MATCH';
 const DEADLOCK_API   = 'https://api.deadlock-api.com';
 const DEADLOCK_ASSET = 'https://assets.deadlock-api.com';
 
-// Demo mode: 3 real match IDs from history to simulate a match just launched
-const DEMO_MATCH_IDS = [80659633, 84419762, 80457157] as const;
+// Demo mode: real match IDs from history to simulate a match just launched.
+// Includes a verified Street Brawl 4v4 (84553413) so the 4-tiles-per-team layout
+// is testable on demand. (The brief's 85818364 is unusable — it 503s from Steam.)
+const DEMO_MATCH_IDS = [80659633, 84419762, 80457157, 84553413] as const;
 
 // Unix offsets (seconds) used to slice match-history for activity windows
 const SECONDS_12H = 12 * 60 * 60;
@@ -57,6 +66,10 @@ export class LiveDashboardPage {
   // Demo mode state (cycle resets on each app session)
   private isDemoMode = false;
   private demoIndex = 0;
+
+  // Live-match polling: a freshly-detected match isn't ingested by the API yet,
+  // so we re-attempt the roster fetch on a timer while in the LIVE_PENDING state.
+  private livePollTimer: ReturnType<typeof setTimeout> | null = null;
 
   // Shared enrichment data (fetched once per match load)
   private rankDistribution: RankDistributionEntry[] = [];
@@ -121,25 +134,34 @@ export class LiveDashboardPage {
     // Re-read demo flag in case it changed while the page was mounted
     this.isDemoMode = localStorage.getItem('demoModeEnabled') === 'true';
 
-    // Always show REAL data: the live-detected match if any, otherwise the
-    // logged-in player's most recent match (resolved inside loadMatchData()).
-    // No demo placeholder, no hard-coded match id.
-    this.renderInitialLoading();
-    this.loadMatchData();
+    // Load match data only when there is an actual match to show: demo mode, or a
+    // live-detected match. When idle (no match), show the waiting screen — we do
+    // NOT auto-load the player's most recent match (that was confusing: the last
+    // ingested match would appear as if a game were live).
+    if (this.isDemoMode || this.currentGameState === 'GAME_IN_MATCH' || this.detectedMatchId) {
+      this.renderInitialLoading();
+      this.loadMatchData();
+    } else if (this.currentGameState === 'GAME_MENU') {
+      this.renderMenuView();
+    } else {
+      this.renderClosedView();
+    }
   }
 
-  private async transitionToState(state: GameState): Promise<void> {
+  private async transitionToState(_state: GameState): Promise<void> {
     if (!this.container) return;
+
+    // A state change (e.g. match ended) invalidates any pending live-poll loop.
+    this.stopLivePoll();
 
     this.container.style.transition = 'opacity 0.3s ease';
     this.container.style.opacity = '0';
     await new Promise<void>((r) => setTimeout(r, 300));
     if (!this.container) return;
 
-    // On any state change, refresh with real data (detected match when in a
-    // match, most recent match otherwise) instead of placeholder screens.
-    this.renderInitialLoading();
-    this.loadMatchData();
+    // Render the view appropriate to the new state (waiting screens when idle,
+    // match data only when actually in a match or in demo mode).
+    this.renderCurrentState();
 
     this.container.style.opacity = '1';
   }
@@ -213,6 +235,31 @@ export class LiveDashboardPage {
     `;
   }
 
+  /**
+   * LIVE_PENDING: a match is detected but the community API has no data for it yet
+   * (it ingests during/after the match, not in real time). Shown until a poll
+   * succeeds. See glossary "Live Roster Availability".
+   */
+  private renderLivePending(matchId: string): void {
+    if (!this.container) return;
+    this.container.innerHTML = `
+      <div class="bg-charcoal-100 min-h-screen h-screen overflow-hidden flex flex-col items-center justify-center text-center px-8">
+        <div class="flex items-center gap-2 mb-6">
+          <span class="w-2.5 h-2.5 rounded-full bg-frosted-mint-500 animate-pulse"></span>
+          <span class="text-frosted-mint-500 text-sm font-medium">Partie détectée — Match ID ${matchId}</span>
+        </div>
+        <h1 class="text-2xl font-bold text-white mb-3">Données indisponibles en direct</h1>
+        <p class="text-grey-400 text-sm max-w-md mb-10">
+          L'API publie les données des joueurs pendant / après la partie, pas en temps réel.
+          Ce tableau se remplira automatiquement dès qu'elles seront disponibles.
+        </p>
+        <div class="grid grid-cols-4 gap-2 opacity-20 w-full max-w-3xl">
+          ${Array(8).fill(0).map(() => `<div class="bg-charcoal-200 rounded-lg animate-pulse" style="height:90px;"></div>`).join('')}
+        </div>
+      </div>
+    `;
+  }
+
   // ── Match ID resolution ──────────────────────────────────────────────────────
 
   private async resolveMatchId(): Promise<string | null> {
@@ -229,34 +276,9 @@ export class LiveDashboardPage {
       return stored;
     }
 
-    // 2. Otherwise, show the logged-in player's most recent real match.
-    return this.fetchMostRecentMatchId();
-  }
-
-  /**
-   * Resolves the logged-in player's most recent match_id.
-   * Flow: steam profile (steamId64) → account_id → GET /v1/players/{id}/match-history
-   * → entry with the highest start_time. Lets the dashboard display real data even
-   * when no live match is detected (no demo, no hard-coded id).
-   */
-  private async fetchMostRecentMatchId(): Promise<string | null> {
-    try {
-      const profile = await window.api?.steamGetProfile?.();
-      if (!profile?.steamId64) return null;
-      const accountId = this.steamId64ToAccountId(profile.steamId64);
-      if (accountId === null) return null;
-
-      // GET /v1/players/{account_id}/match-history
-      const res = await fetch(`${DEADLOCK_API}/v1/players/${accountId}/match-history`);
-      if (!res.ok) return null;
-      const history: MatchHistoryEntry[] = await res.json();
-      if (!Array.isArray(history) || history.length === 0) return null;
-
-      const latest = history.reduce((a, b) => (b.start_time > a.start_time ? b : a));
-      return latest.match_id ? String(latest.match_id) : null;
-    } catch {
-      return null;
-    }
+    // Otherwise: no live match → null. The caller (renderCurrentState) shows the
+    // waiting screen instead of falling back to the player's most recent match.
+    return null;
   }
 
   /** SteamID64 → 32-bit account_id (subtract the Steam base constant). */
@@ -272,6 +294,131 @@ export class LiveDashboardPage {
     }
   }
 
+  // ── Roster fetch + normalization ─────────────────────────────────────────────
+
+  /**
+   * Bulk metadata endpoint — the dashboard's primary roster source.
+   * GET /v1/matches/metadata?match_ids={id}&include_info=true&include_player_info=true
+   * 10 req/min per IP, Clickhouse-backed (no Steam dependency → no 503).
+   * Returns a JSON array of flat match objects with PascalCase enums
+   * ("Normal"/"StreetBrawl", "Team0"/"Team1"); normalizeMatchInfo() canonicalises them.
+   */
+  private async fetchBulkMatchInfo(matchId: string): Promise<any | null> {
+    try {
+      const url = `${DEADLOCK_API}/v1/matches/metadata?match_ids=${matchId}`
+        + `&include_info=true&include_player_info=true`;
+      const res = await fetch(url);
+      if (!res.ok) return null;
+      const arr = await res.json();
+      const raw = Array.isArray(arr) ? arr[0] : arr;
+      return this.normalizeMatchInfo(raw);
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Real-time roster for a live-detected match.
+   * GET /v1/matches/active?account_ids={me} — returns the match the player is in,
+   * with players carrying account_id / hero_id / team only (no assigned_lane or
+   * player_slot → synthesized here). Frequently empty mid-match (post-match
+   * ingestion lag), in which case the caller shows the LIVE_PENDING state.
+   */
+  private async fetchActiveMatchInfo(matchId: string): Promise<any | null> {
+    try {
+      const profile = await window.api?.steamGetProfile?.();
+      if (!profile?.steamId64) return null;
+      const accountId = this.steamId64ToAccountId(profile.steamId64);
+      if (accountId === null) return null;
+
+      const res = await fetch(`${DEADLOCK_API}/v1/matches/active?account_ids=${accountId}`);
+      if (!res.ok) return null;
+      const data = await res.json();
+      if (!Array.isArray(data) || data.length === 0) return null;
+
+      const match = data.find((m: any) =>
+        String(m.match_id) === String(matchId) && Array.isArray(m.players) && m.players.length)
+        ?? data.find((m: any) => Array.isArray(m.players) && m.players.length);
+      if (!match) return null;
+
+      return this.normalizeMatchInfo({
+        match_id: Number(matchId),
+        game_mode: match.game_mode_parsed ?? match.game_mode,
+        duration_s: match.duration_s,
+        winning_team: match.winning_team,
+        players: match.players.map((p: any, i: number) => ({
+          account_id: p.account_id,
+          hero_id: p.hero_id,
+          team: p.team_parsed ?? p.team,
+          player_slot: i,
+          assigned_lane: p.assigned_lane,
+        })),
+      });
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Canonicalises a raw match object into the shape the dashboard renders, tolerating
+   * BOTH endpoint dialects (bulk = flat + PascalCase strings; per-match/cache = nested
+   * under match_info + integers). Player objects are spread so existing enrichment
+   * fields survive when normalising a cached, already-enriched match.
+   */
+  private normalizeMatchInfo(raw: any): any | null {
+    const info = raw?.match_info ?? raw;
+    if (!info?.players?.length) return null;
+    const players = info.players.map((p: any, i: number) => ({
+      ...p,
+      player_slot: p.player_slot ?? i,
+      team: this.normalizeTeam(p.team),
+    }));
+    return {
+      ...info,
+      match_id: info.match_id,
+      game_mode: info.game_mode,
+      game_mode_label: this.gameModeLabel(info.game_mode),
+      duration_s: info.duration_s,
+      winning_team: this.normalizeTeam(info.winning_team),
+      players,
+    };
+  }
+
+  /** "Team0"/"Team1" (bulk) or 0/1 (per-match) → 0 | 1. Unknown/null → 0. */
+  private normalizeTeam(team: any): 0 | 1 {
+    return team === 1 || team === 'Team1' ? 1 : 0;
+  }
+
+  /** True for Street Brawl across every enum dialect (4 | "StreetBrawl" | "KECitadelGameModeStreetBrawl" | "street_brawl"). */
+  private isStreetBrawl(gameMode: any): boolean {
+    return gameMode === 4 || (typeof gameMode === 'string' && /street_?brawl/i.test(gameMode));
+  }
+
+  /** Human label for the mode badge. */
+  private gameModeLabel(gameMode: any): string {
+    if (this.isStreetBrawl(gameMode)) return 'Street Brawl';
+    if (gameMode === 1 || (typeof gameMode === 'string' && /normal/i.test(gameMode))) return 'Normal';
+    return '';
+  }
+
+  // ── Live-match polling (LIVE_PENDING state) ───────────────────────────────────
+
+  /** Re-attempt the roster fetch while a detected live match isn't ingested yet. */
+  private scheduleLivePoll(): void {
+    this.stopLivePoll();
+    this.livePollTimer = setTimeout(() => {
+      this.livePollTimer = null;
+      this.loadMatchData();
+    }, 20000);
+  }
+
+  private stopLivePoll(): void {
+    if (this.livePollTimer) {
+      clearTimeout(this.livePollTimer);
+      this.livePollTimer = null;
+    }
+  }
+
   // ── Main data loading ────────────────────────────────────────────────────────
 
   private async loadMatchData(): Promise<void> {
@@ -280,7 +427,7 @@ export class LiveDashboardPage {
     this.isLoading = true;
 
     try {
-      if (!window.api?.executePython) throw new Error('API not available');
+      if (!window.api) throw new Error('API not available');
 
       const matchId = await this.resolveMatchId();
       if (!matchId) {
@@ -290,30 +437,52 @@ export class LiveDashboardPage {
       }
       this.loadedMatchId = matchId;
 
-      // Always use real API — demo mode uses real match IDs, no fake data
-      let response = await window.api.executePython('match', matchId, false);
-      let usingCache = false;
+      // A live-detected match (not demo) isn't ingested by the post-match APIs yet,
+      // so its roster comes from the real-time active-match endpoint (best-effort).
+      const isLiveDetected = !this.isDemoMode && this.detectedMatchId === matchId;
 
-      if (response.cached) {
-        usingCache = true;
-      } else if (!response.success || response.status === 'api_error') {
-        if (window.api?.getCachedMatch) {
-          const cachedMatch = await window.api.getCachedMatch(matchId);
-          if (cachedMatch) {
-            response = { success: true, data: cachedMatch, cached: true };
-            usingCache = true;
-          } else {
-            throw new Error(response.error || 'Failed to fetch match data and no cache available');
+      // ── Roster resolution (see ADR-0004) ─────────────────────────────────────
+      let matchInfo: any = null;
+
+      if (isLiveDetected) {
+        // Real-time roster first; if the match has just ended it may already be in
+        // the bulk store, so try that too before giving up.
+        matchInfo = await this.fetchActiveMatchInfo(matchId);
+        if (!matchInfo) matchInfo = await this.fetchBulkMatchInfo(matchId);
+        if (!matchInfo) {
+          // Nothing available live yet → pending state, retry on a timer.
+          this.renderLivePending(matchId);
+          this.scheduleLivePoll();
+          return;
+        }
+      } else {
+        // Demo / historical → bulk metadata endpoint (10/min, no Steam 503).
+        matchInfo = await this.fetchBulkMatchInfo(matchId);
+        if (!matchInfo) {
+          // API unavailable → fall back to the last cached (already-enriched) match.
+          const cached = await window.api.getCachedMatch?.(matchId);
+          const cachedInfo = cached ? this.normalizeMatchInfo(cached) : null;
+          if (cachedInfo?.players?.length) {
+            this.matchData = {
+              match_id: cachedInfo.match_id,
+              game_mode: cachedInfo.game_mode,
+              duration_s: cachedInfo.duration_s,
+              winning_team: cachedInfo.winning_team,
+              players: cachedInfo.players,
+              teams: cachedInfo.teams ?? [],
+            };
+            this.renderMatchData();
+            this.showCacheIndicator();
+            return;
           }
-        } else {
-          throw new Error(response.error || 'Failed to fetch match data');
+          throw new Error('Failed to fetch match data and no cache available');
         }
       }
 
-      const matchInfo = response.data?.match_info ?? response.data;
-      if (!matchInfo?.players) throw new Error('Invalid match data structure');
+      if (!matchInfo?.players?.length) throw new Error('Invalid match data structure');
 
-      if (usingCache && this.container) this.showCacheIndicator();
+      // We have a fresh roster → cancel any pending live-poll loop.
+      this.stopLivePoll();
 
       let players: Player[] = matchInfo.players.map((p: any) => ({
         ...p,
@@ -442,14 +611,15 @@ export class LiveDashboardPage {
 
       this.matchData = {
         match_id:     matchInfo.match_id,
+        game_mode:    matchInfo.game_mode,
         duration_s:   matchInfo.duration_s,
         winning_team: matchInfo.winning_team,
         players,
-        teams: response.data?.teams ?? [],
+        teams: matchInfo.teams ?? [],
       };
 
       // Cache only real (non-demo) match data to avoid poisoning with historical demos
-      if (!usingCache && !this.isDemoMode && response.success && window.api?.cacheMatch && matchInfo.match_id) {
+      if (!this.isDemoMode && window.api?.cacheMatch && matchInfo.match_id) {
         window.api.cacheMatch(matchId, this.matchData).catch(() => { /* non-fatal */ });
       }
 
@@ -653,6 +823,12 @@ export class LiveDashboardPage {
     const { row0, row1 } = this.organizePlayersIntoGrid(this.matchData.players);
     const cols = Math.max(row0.length, row1.length, 1);
 
+    // Lane colours are meaningful only in Normal mode. In Street Brawl everyone
+    // shares one lane (yet assigned_lane is still populated with 1/4/6), so the
+    // tile renders a neutral border with no lane dot. Gated on game_mode, never
+    // on the lane count — see CONTEXT.md "Lane Color".
+    const streetBrawl = this.isStreetBrawl(this.matchData.game_mode);
+
     const laneColorFor = (p: Player): 'yellow' | 'blue' | 'green' =>
       (p.lane as 'yellow' | 'blue' | 'green' | undefined) ?? 'blue';
 
@@ -661,7 +837,7 @@ export class LiveDashboardPage {
         return `<div class="bg-[#1a1f24] rounded-lg border border-[#2a2f35] opacity-20"></div>`;
       }
       const el = document.createElement('div');
-      PlayerCard.mount(el, { player, laneColor: laneColorFor(player) });
+      PlayerCard.mount(el, { player, laneColor: laneColorFor(player), showLane: !streetBrawl });
       return el.innerHTML;
     };
 
@@ -680,30 +856,43 @@ export class LiveDashboardPage {
       ? `<span class="px-2 py-0.5 rounded text-xs font-medium bg-yellow-400/10 text-yellow-400 border border-yellow-400/30">DEMO</span>`
       : '';
 
+    // Visible game-mode badge (acceptance criterion: "indiquer le matchMode visible").
+    // Street Brawl gets a distinct amber accent; Normal a neutral slate.
+    const modeName = this.gameModeLabel(this.matchData.game_mode);
+    const modeBadge = modeName
+      ? `<span class="px-2 py-0.5 rounded text-xs font-bold ${streetBrawl
+          ? 'bg-amber-400/15 text-amber-400 border border-amber-400/40'
+          : 'bg-slate-400/10 text-slate-300 border border-slate-400/30'}">${modeName}</span>`
+      : '';
+
+    // Refresh button lives in the LEFT cluster: the right corner is owned by the
+    // global #game-status-sticky badge (fixed top-4 right-4 z-[70]), which used to
+    // overlap it. padding-right reserves room so the cluster never reaches the badge.
+    const refreshBtn = `
+      <button
+        id="refresh-match-btn"
+        title="${this.isDemoMode ? 'Next demo match' : 'Refresh match data'}"
+        class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-charcoal-200 hover:bg-charcoal-300 text-white border border-grey-600 hover:border-frosted-mint-500 transition-colors text-sm"
+      >
+        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+        </svg>
+        ${this.isDemoMode ? 'Refresh' : 'Actualiser'}
+      </button>`;
+
     this.container.innerHTML = `
       <div class="bg-charcoal-100 min-h-screen h-screen overflow-hidden flex flex-col">
 
-        <!-- HEADER -->
-        <div class="flex items-center justify-between px-4 py-3 shrink-0 border-b border-[#2a2f35]">
-          <div class="flex items-center gap-3">
-            <h1 class="text-lg font-bold text-white">Live Dashboard</h1>
-            ${demoLabel}
-            <!-- Mode / player count derived from real metadata (adapts 12 / 8 / …) -->
-            <span class="px-2 py-0.5 rounded text-xs font-medium bg-frosted-mint-500/10 text-frosted-mint-500 border border-frosted-mint-500/30">${modeLabel}</span>
-            <span class="text-xs text-[#555] font-mono">Match ID: ${matchId}</span>
-          </div>
-
-          <button
-            id="refresh-match-btn"
-            title="${this.isDemoMode ? 'Next demo match' : 'Refresh match data'}"
-            class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-charcoal-200 hover:bg-charcoal-300 text-white border border-grey-600 hover:border-frosted-mint-500 transition-colors text-sm"
-          >
-            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-            </svg>
-            ${this.isDemoMode ? 'Refresh' : 'Actualiser'}
-          </button>
+        <!-- HEADER (all controls left-aligned; right corner reserved for global status badge) -->
+        <div class="flex items-center gap-3 flex-wrap px-4 py-3 shrink-0 border-b border-[#2a2f35]" style="padding-right: 320px;">
+          <h1 class="text-lg font-bold text-white">Live Dashboard</h1>
+          ${demoLabel}
+          ${modeBadge}
+          <!-- Player count derived from real metadata (adapts 12 / 8 / …) -->
+          <span class="px-2 py-0.5 rounded text-xs font-medium bg-frosted-mint-500/10 text-frosted-mint-500 border border-frosted-mint-500/30">${modeLabel}</span>
+          <span class="text-xs text-[#555] font-mono">Match ID: ${matchId}</span>
+          ${refreshBtn}
         </div>
 
         <!-- GRID: row 0 = team 0, row 1 = team 1. Columns adapt to team size. -->

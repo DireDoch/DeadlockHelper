@@ -20,9 +20,12 @@ function formatDecimal(value: number): string {
 
 export class PlayerCard {
   static render(props: PlayerCardProps): string {
-    const { player, laneColor } = props;
+    const { player, laneColor, showLane } = props;
 
-    const lane = LANE_STYLES[laneColor ?? ''] ?? { border: 'border-l-grey-600', dot: 'bg-grey-600', text: 'text-grey-400' };
+    // showLane === false (Street Brawl): lanes are meaningless → neutral border, no dot.
+    // See CONTEXT.md "Player Tile" / "Lane Color".
+    const NEUTRAL = { border: 'border-l-grey-600', dot: 'bg-grey-600', text: 'text-grey-400' };
+    const lane = showLane === false ? NEUTRAL : (LANE_STYLES[laneColor ?? ''] ?? NEUTRAL);
 
     // Identity
     const personaname = player.steamProfile?.personaname ?? player.name ?? `Player ${player.player_slot + 1}`;
@@ -83,7 +86,9 @@ export class PlayerCard {
             class="text-white font-bold text-base leading-tight truncate flex-1 min-w-0 hover:text-frosted-mint-400 transition-colors"
             title="Voir le profil Steam"
           >${personaname}</a>
-          <span class="w-2 h-2 rounded-full ml-2 shrink-0 ${lane.dot}"></span>
+          ${showLane === false
+            ? ''
+            : `<span class="w-2 h-2 rounded-full ml-2 shrink-0 ${lane.dot}"></span>`}
         </div>
 
         <!-- HERO SECTION: icon + "as Hero (Xp)" + winrate -->

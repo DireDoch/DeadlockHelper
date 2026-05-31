@@ -200,7 +200,7 @@ export interface MatchData {
     team: 0 | 1;
     [key: string]: any;
   }>;
-  game_mode?: string;
+  game_mode?: number | string; // 1/"Normal"=6v6, 4/"StreetBrawl"=4v4 (both dialects tolerated)
   [key: string]: any; // Allow additional fields from API
 }
 
