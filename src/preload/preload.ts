@@ -132,6 +132,17 @@ contextBridge.exposeInMainWorld('api', {
 
   // Runtime platform — exposed so renderers can detect OS without Node.js globals
   platform: process.platform,
+
+  // Awards system
+  getAllAwards: (): Promise<Record<string, import('../lib/awards').AwardEntry>> =>
+    ipcRenderer.invoke('awards:get-all'),
+
+  saveAwardsBatch: (entries: import('../lib/awards').AwardEntry[]): Promise<import('../lib/awards').NewAwardsResult> =>
+    ipcRenderer.invoke('awards:save-batch', entries),
+
+  onAwardsNavigate: (callback: () => void): void => {
+    ipcRenderer.on('awards:navigate', () => callback());
+  },
 });
 
 contextBridge.exposeInMainWorld('spotify', {
@@ -194,6 +205,9 @@ declare global {
       onOcrRosterUpdated: (callback: (roster: import('../lib/types').OcrRoster) => void) => void;
       launchDeadlock: () => Promise<{ success: boolean }>;
       platform: NodeJS.Platform;
+      getAllAwards: () => Promise<Record<string, import('../lib/awards').AwardEntry>>;
+      saveAwardsBatch: (entries: import('../lib/awards').AwardEntry[]) => Promise<import('../lib/awards').NewAwardsResult>;
+      onAwardsNavigate: (callback: () => void) => void;
     };
     spotify: {
       login: () => Promise<{ success: boolean; displayName?: string; error?: string }>;

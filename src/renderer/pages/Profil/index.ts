@@ -28,6 +28,9 @@ import { RANKS } from '../../../lib/constants/ranks';
 import { renderItemTierBadge } from '../../../lib/utils';
 import { MatchDetailController } from './matchDetail';
 import type { DetailContext, RichMatchMeta, HeroAsset as DetailHeroAsset, DetailItem } from './matchDetail/types';
+import { computeAwardsForMatch } from './awards/criteria';
+import { renderAwardsTab, attachAwardsTabEvents } from './awards/tab';
+import type { AwardId, AwardEntry } from '../../../lib/awards';
 
 import rankInitiateUrl   from '../../../assets/icons/RankBadge/Initiator.png?url';
 import rankSeekerUrl     from '../../../assets/icons/RankBadge/Seekers.png?url';
@@ -116,11 +119,12 @@ interface ItemData {
 
 // ── Tab definitions ────────────────────────────────────────────────────────────
 
-type Tab = 'overview' | 'heroes' | 'matches';
+type Tab = 'overview' | 'heroes' | 'matches' | 'awards';
 const TABS: { id: Tab; label: string }[] = [
   { id: 'overview', label: 'Overview' },
   { id: 'heroes',   label: 'Heroes'   },
   { id: 'matches',  label: 'Matches'  },
+  { id: 'awards',   label: 'Awards'   },
 ];
 
 // ── Module-level caches ────────────────────────────────────────────────────────
@@ -287,6 +291,9 @@ export class ProfilPage {
   // when non-null, page shows an external player instead of the logged-in user
   private externalAccountId: number | null = null;
 
+  // Awards earned by the local player, loaded from electron-store + updated after Phase 3
+  private awardsEarned: Map<AwardId, AwardEntry> = new Map();
+
   // ── Lifecycle ────────────────────────────────────────────────────────────────
 
   mount(container: HTMLElement): void {
@@ -302,6 +309,13 @@ export class ProfilPage {
     this.loadDataForPlayer(accountId);
   }
 
+  /** Mount the local player's profile and immediately switch to the Awards tab.
+   *  Called when the user clicks an awards notification. */
+  mountOnAwardsTab(container: HTMLElement): void {
+    this.currentTab = 'awards';
+    this.mount(container);
+  }
+
   private _resetState(container: HTMLElement): void {
     this.container       = container;
     this.loading         = true;
@@ -312,6 +326,12 @@ export class ProfilPage {
     this.matchDetail.reset(); // clear per-match panel UI state (owner-relative defaults)
     this.movingAvgBadge  = null;
     this.deadlockProfile = null;
+    this.awardsEarned    = new Map();
+    // Awards tab is only available on the local player's profile — reset to overview
+    // when navigating to an external player to avoid showing an empty tab.
+    if (this.externalAccountId !== null && this.currentTab === 'awards') {
+      this.currentTab = 'overview';
+    }
     this.render();
   }
 
@@ -326,7 +346,7 @@ export class ProfilPage {
         return;
       }
 
-      // Phase 1: profile + assets in parallel
+      // Phase 1: profile + assets in parallel (awards loaded from store in background)
       const [profileArr, heroMap, itemMap, badgeDist] = await Promise.all([
         // GET /v1/players/steam-search — resolves account_id + initial badge estimate
         fetch(`${API}/v1/players/steam-search?search_query=${encodeURIComponent(this.steamProfile.steamId64)}&min_matches_played_last_30d=0&limit=1`)
@@ -335,6 +355,13 @@ export class ProfilPage {
         fetchItemsCache(),
         fetchBadgeDist(),
       ]);
+
+      // Load persisted awards from electron-store so the tab renders immediately
+      window.api?.getAllAwards?.().then(all => {
+        this.awardsEarned = new Map(
+          Object.entries(all ?? {}).map(([k, v]) => [k as AwardId, v as AwardEntry]),
+        );
+      }).catch(() => {});
 
       this.deadlockProfile = (profileArr as DeadlockSteamProfile[])[0] ?? null;
       this.heroMap  = heroMap;
@@ -439,6 +466,55 @@ export class ProfilPage {
 
     // Re-render match rows with fresh metadata
     this.refreshMatchRows();
+
+    // Compute awards from loaded metadata (own profile only)
+    this.computeAndSaveAwards();
+  }
+
+  /**
+   * Evaluate all computable awards against the loaded matchMetaMap and persist
+   * new occurrences via IPC. Only runs for the local player's own profile.
+   * Fires after fetchBatchMetadata resolves — matchMetaMap is fully populated.
+   */
+  private async computeAndSaveAwards(): Promise<void> {
+    if (this.externalAccountId !== null) return;
+    if (!this.deadlockProfile?.account_id) return;
+
+    const accountId = this.deadlockProfile.account_id;
+    const pending   = new Map<AwardId, AwardEntry>();
+
+    for (const [matchId, rawMeta] of this.matchMetaMap) {
+      const meta      = rawMeta as unknown as RichMatchMeta;
+      const matchBase = this.allMatches.find(m => m.match_id === matchId);
+      // firstEarnedAt = match start_time (seconds → ms); falls back to now if entry absent
+      const earnedAt  = matchBase ? matchBase.start_time * 1000 : Date.now();
+
+      for (const awardId of computeAwardsForMatch(accountId, meta)) {
+        const existing = pending.get(awardId);
+        if (existing) {
+          existing.matchIds.push(matchId);
+          existing.count++;
+        } else {
+          pending.set(awardId, { awardId, matchIds: [matchId], firstEarnedAt: earnedAt, count: 1 });
+        }
+      }
+    }
+
+    if (!pending.size) return;
+
+    try {
+      await window.api?.saveAwardsBatch?.([...pending.values()]);
+      // Refresh earnedMap from the authoritative store after the save
+      const all = await window.api?.getAllAwards?.();
+      if (all) {
+        this.awardsEarned = new Map(
+          Object.entries(all).map(([k, v]) => [k as AwardId, v as AwardEntry]),
+        );
+        if (this.currentTab === 'awards') this.refreshTabContent();
+      }
+    } catch (err) {
+      console.error('[ProfilPage] computeAndSaveAwards error:', err);
+    }
   }
 
   /**
@@ -620,10 +696,15 @@ export class ProfilPage {
   // ── Tab bar ───────────────────────────────────────────────────────────────────
 
   private renderTabBar(): string {
+    // Awards tab only available on the local player's own profile
+    const visibleTabs = this.externalAccountId !== null
+      ? TABS.filter(t => t.id !== 'awards')
+      : TABS;
+
     return `
       <div class="sticky top-0 z-20 bg-charcoal-100/95 backdrop-blur border-b border-grey-700 px-8">
         <div class="flex gap-1 -mb-px">
-          ${TABS.map(t => `
+          ${visibleTabs.map(t => `
             <button data-tab="${t.id}"
               class="profil-tab-btn px-5 py-3 text-sm font-medium transition-colors border-b-2 -mb-px whitespace-nowrap
                 ${this.currentTab === t.id
@@ -640,6 +721,7 @@ export class ProfilPage {
   private renderTabContent(): string {
     switch (this.currentTab) {
       case 'overview': return this.renderOverviewTab();
+      case 'awards':   return renderAwardsTab(this.awardsEarned);
       case 'heroes':
       case 'matches':
         return `
@@ -655,6 +737,30 @@ export class ProfilPage {
     if (!el) return;
     el.innerHTML = this.renderTabContent();
     this.attachMatchRowEvents();
+    this.attachAwardsEvents();
+  }
+
+  /** Wire award card clicks + drawer events. No-op outside the Awards tab. */
+  private attachAwardsEvents(): void {
+    if (!this.container || this.currentTab !== 'awards') return;
+    attachAwardsTabEvents(
+      this.container,
+      this.awardsEarned,
+      (matchId: number) => {
+        // Switch to Overview and expand the match row
+        const idx = this.allMatches.findIndex(m => m.match_id === matchId);
+        if (idx === -1) return;
+        if (idx >= this.visibleCount) this.visibleCount = idx + 1;
+        this.expandedMatches.add(matchId);
+        this.currentTab = 'overview';
+        this.render();
+        // Scroll to the expanded row after render
+        requestAnimationFrame(() => {
+          this.container?.querySelector(`[data-match-id="${matchId}"]`)
+            ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        });
+      },
+    );
   }
 
   // ── Overview tab ──────────────────────────────────────────────────────────────
@@ -1069,6 +1175,7 @@ export class ProfilPage {
       });
     });
     this.attachMatchRowEvents();
+    this.attachAwardsEvents();
   }
 
   private attachMatchRowEvents(): void {

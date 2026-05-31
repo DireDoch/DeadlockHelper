@@ -65,6 +65,54 @@
   animation: ultimate-glow 2.4s ease-in-out infinite;
 }
 
+/* ── Award cards v2 (cyber-tactical glassmorphism) ───────────────────────── */
+
+/* Earned card: ambient rarity glow at rest */
+.award-card-v2.ac-earned {
+  box-shadow: 0 0 0 0.5px var(--rarity-color, rgba(255,255,255,0.1)),
+              0 4px 16px -4px var(--rarity-glow, rgba(255,255,255,0.05));
+}
+
+/* Hover on earned card: stronger external glow, no scale */
+.award-card-v2.ac-earned:hover {
+  box-shadow: 0 0 0 1px var(--rarity-color, rgba(255,255,255,0.2)),
+              0 0 24px 0  var(--rarity-glow, rgba(255,255,255,0.1)),
+              0 8px 32px -8px var(--rarity-glow, rgba(255,255,255,0.08));
+  border-color: var(--rarity-color, rgba(255,255,255,0.2)) !important;
+}
+
+/* Hover on any card: slight lift */
+.award-card-v2:hover {
+  transform: translateY(-2px);
+  transition: box-shadow 0.3s ease-out, border-color 0.3s ease-out, transform 0.25s ease-out;
+}
+
+/* Shimmer — fires once via ac-shimmer::after on hover of earned parent */
+@keyframes ac-shimmer-sweep {
+  from { transform: translateX(-120%) skewX(-12deg); }
+  to   { transform: translateX(220%)  skewX(-12deg); }
+}
+
+.ac-shimmer::after {
+  content: '';
+  position: absolute;
+  inset: -20px;
+  background: linear-gradient(
+    105deg,
+    transparent 35%,
+    rgba(255,255,255,0.07) 48%,
+    rgba(255,255,255,0.04) 52%,
+    transparent 65%
+  );
+  transform: translateX(-120%) skewX(-12deg);
+  pointer-events: none;
+  z-index: 10;
+}
+
+.award-card-v2.ac-earned:hover .ac-shimmer::after {
+  animation: ac-shimmer-sweep 0.65s ease-out forwards;
+}
+
 @theme {
   /* Charcoal colors */
   --color-charcoal-100: #121212;

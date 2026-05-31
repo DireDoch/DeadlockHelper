@@ -151,6 +151,16 @@ export class App {
       }
     });
 
+    // Notification click: navigate to Awards tab on the local player's profile
+    if (window.api?.onAwardsNavigate) {
+      window.api.onAwardsNavigate(() => {
+        if (!this.contentContainer) return;
+        this.currentPage = 'profil';
+        this.sidebar.navigateTo('profil');
+        this.profilPage.mountOnAwardsTab(this.contentContainer);
+      });
+    }
+
     // Initial page render
     this.renderPage(this.currentPage);
 

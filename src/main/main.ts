@@ -20,6 +20,7 @@ import {
   patchOverlaySettings,
   setupOverlayIpcHandlers,
 } from './overlay-window';
+import { setupAwardsIpcHandlers } from './awards-store';
 import { ocrWorker } from './ocr-worker';
 import {
   getKwinOverlayRuleStatus,
@@ -640,6 +641,9 @@ function setupIpcHandlers(): void {
     };
   });
   
+  // Awards system — persistence + native notification
+  setupAwardsIpcHandlers(ipcMain, () => mainWindow);
+
   // Setup Steam handlers
   setupSteamHandlers();
 
