@@ -5,6 +5,7 @@ export default defineConfig({
   plugins: [
     tailwindcss({ config: './tailwind.config.ts' }),
   ],
+  base: './',
   build: {
     rollupOptions: {
       input: './overlay.html',
