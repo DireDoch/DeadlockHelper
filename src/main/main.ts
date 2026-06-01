@@ -28,7 +28,6 @@ import {
   removeKwinOverlayRule,
 } from './kwin-overlay-rule';
 import { LogWatcher } from './log-watcher';
-import { detectionLog } from './detection-logger'; // [TEMP DEBUG] retirer après diagnostic
 import started from 'electron-squirrel-startup';
 import type { CachedMatchData, MatchData, GameState } from '../lib/types';
 
@@ -285,23 +284,6 @@ function syncKwinOverlayFix(gameRunning: boolean): void {
 }
 
 /**
- * [TEMP DEBUG] Phase 0 de-risk for the "true live" roster path.
- * Asks the API to spectate THIS (normal) match and return a Source 2 broadcast URL.
- * Logs the outcome so we know — before investing in a broadcast parser — whether
- * a normal match can be spectated at all (vs. the top-200-only /matches/active).
- */
-async function probeLiveBroadcast(matchId: number): Promise<void> {
-  const url = `https://api.deadlock-api.com/v1/matches/${matchId}/live/url`;
-  try {
-    const res = await fetch(url);
-    const body = await res.text();
-    detectionLog('PROBE live/url', { matchId, status: res.status, body: body.slice(0, 300) });
-  } catch (e) {
-    detectionLog('PROBE live/url ERREUR', { matchId, error: String(e) });
-  }
-}
-
-/**
  * Wire the LogWatcher events ONCE (avoids stacking listeners on every game launch).
  *
  * Primary, reliable match detection: parsed from Deadlock's local console.log.
@@ -316,7 +298,6 @@ function setupLogWatcherListeners(): void {
 
   // Match start detected locally — drives the Live Dashboard into GAME_IN_MATCH.
   logWatcher.on('match-started', ({ matchId, wallTime }: { matchId: number; wallTime: number }) => {
-    detectionLog('LOG-WATCHER match-started (console.log local)', { matchId }); // [TEMP DEBUG]
     if (matchId === lastKnownMatchId) return;
     lastKnownMatchId = matchId;
     matchSource = 'log';
@@ -335,13 +316,10 @@ function setupLogWatcherListeners(): void {
     });
     // ESP (Live Roster OCR) — démarre le worker si le toggle est actif.
     startOcrIfEnabled();
-    // [TEMP DEBUG] Phase 0: can the API spectate this normal match for a live feed?
-    probeLiveBroadcast(matchId);
   });
 
   // Match end detected locally.
   logWatcher.on('match-ended', ({ matchId }: { matchId: number }) => {
-    detectionLog('LOG-WATCHER match-ended (console.log local)', { matchId }); // [TEMP DEBUG]
     if (lastKnownMatchId === null) return;
     emitMatchEnded(lastKnownMatchId);
     lastKnownMatchId = null;
@@ -360,14 +338,6 @@ async function checkDeadlockAndMatchStatus(): Promise<void> {
   const isRunning = processStatus.running;
   const wasRunning = lastGameRunning;
 
-  // [TEMP DEBUG] tick de poll : process trouvé ou non (pgrep "[Dd]eadlock.exe")
-  detectionLog('poll', {
-    processRunning: isRunning,
-    wasRunning,
-    state: lastGameState,
-    exeExists: processStatus.executableExists,
-  });
-
   if (!isRunning) {
     if (wasRunning) {
       emitGameProcessStatus(false);
@@ -384,7 +354,6 @@ async function checkDeadlockAndMatchStatus(): Promise<void> {
     if (lastGameState !== 'GAME_CLOSED') {
       lastGameState = 'GAME_CLOSED';
       emitGameStateChanged('GAME_CLOSED');
-      detectionLog('state -> GAME_CLOSED'); // [TEMP DEBUG]
     }
     return;
   }
@@ -398,7 +367,6 @@ async function checkDeadlockAndMatchStatus(): Promise<void> {
     // Start log watcher using saved or auto-detected path
     const overlaySettings = getOverlaySettings();
     const logPath = overlaySettings.logPath || LogWatcher.detectLogPath();
-    detectionLog('LogWatcher démarré', { logPath }); // [TEMP DEBUG]
     logWatcher.setLogPath(logPath); // listeners are wired once in setupLogWatcherListeners()
     // Auto-apply the KWin keep-above fix now that Deadlock is really running
     syncKwinOverlayFix(true);
@@ -409,53 +377,27 @@ async function checkDeadlockAndMatchStatus(): Promise<void> {
   if (lastGameState === 'GAME_CLOSED') {
     lastGameState = 'GAME_MENU';
     emitGameStateChanged('GAME_MENU');
-    detectionLog('state -> GAME_MENU (process détecté)'); // [TEMP DEBUG]
   }
 
   const now = Date.now();
-  if (now - lastApiCheckAt < 20_000) {
-    // [TEMP DEBUG] le contrôle API est throttlé à 20s ; on note l'attente restante
-    detectionLog('match-check throttlé', { nextCheckInMs: 20_000 - (now - lastApiCheckAt) });
-    return;
-  }
+  if (now - lastApiCheckAt < 20_000) return;
   lastApiCheckAt = now;
 
   const steamId64 = steamProfileStore.get('steamId64');
-  if (!steamId64) {
-    // [TEMP DEBUG] cause #1 fréquente : pas connecté à Steam → aucune détection de match possible
-    detectionLog('ABANDON: steamId64 absent (pas connecté à Steam ?)');
-    return;
-  }
+  if (!steamId64) return;
 
   const accountId = steamId64ToAccountId(steamId64);
-  if (accountId === null) {
-    detectionLog('ABANDON: steamId64 invalide', { steamId64 }); // [TEMP DEBUG]
-    return;
-  }
-
-  // [TEMP DEBUG] on va interroger /v1/matches/active pour ce compte
-  detectionLog('appel findActiveMatchByAccountId', { steamId64, accountId });
+  if (accountId === null) return;
 
   const { matchId, durationS, playerHeroId, enemyHeroIds } = await findActiveMatchByAccountId(accountId);
-
-  // [TEMP DEBUG] résultat brut de l'API match-active
-  detectionLog('résultat match-active', {
-    matchId,
-    durationS,
-    playerHeroId,
-    enemyCount: enemyHeroIds.length,
-    lastKnownMatchId,
-  });
 
   if (matchId !== null && matchId !== lastKnownMatchId) {
     lastKnownMatchId = matchId;
     matchSource = 'api';
     emitMatchStarted(matchId);
-    detectionLog('MATCH DÉTECTÉ via API -> emit game:match-started', { matchId }); // [TEMP DEBUG]
     if (lastGameState !== 'GAME_IN_MATCH') {
       lastGameState = 'GAME_IN_MATCH';
       emitGameStateChanged('GAME_IN_MATCH', matchId);
-      detectionLog('state -> GAME_IN_MATCH', { matchId }); // [TEMP DEBUG]
     }
     // Push full match context to overlay
     const startWallTime = durationS != null
@@ -477,7 +419,6 @@ async function checkDeadlockAndMatchStatus(): Promise<void> {
   // is ended by the log's "destroyed" line — never by an empty API response.
   if (matchId === null && lastKnownMatchId !== null && matchSource !== 'log') {
     emitMatchEnded(lastKnownMatchId);
-    detectionLog('MATCH TERMINÉ via API -> emit game:match-ended', { lastKnownMatchId }); // [TEMP DEBUG]
     lastKnownMatchId = null;
     matchSource = null;
     ocrWorker.stop();
@@ -486,7 +427,6 @@ async function checkDeadlockAndMatchStatus(): Promise<void> {
     if (lastGameState !== 'GAME_MENU') {
       lastGameState = 'GAME_MENU';
       emitGameStateChanged('GAME_MENU');
-      detectionLog('state -> GAME_MENU (match terminé)'); // [TEMP DEBUG]
     }
   }
 }
