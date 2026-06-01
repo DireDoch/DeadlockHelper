@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import { app, BrowserWindow, ipcMain, shell } from 'electron';
+import { app, BrowserWindow, ipcMain, shell, session } from 'electron';
 
 
 import path from 'node:path';
@@ -625,10 +625,47 @@ function setupIpcHandlers(): void {
   });
 }
 
+/**
+ * Injecte les headers Content-Security-Policy sur toutes les réponses de la session par défaut.
+ * Cette couche est plus robuste que le meta tag HTML : elle s'applique avant le rendu de la page
+ * et couvre les deux fenêtres (main_window et overlay_window).
+ *
+ * Politique :
+ *   - script-src 'self'       : uniquement les scripts bundlés par Vite (pas d'eval, pas de CDN)
+ *   - style-src 'unsafe-inline': Tailwind génère des styles inline — nécessaire
+ *   - img-src                 : avatars Steam (*.steamstatic.com) + images héros/items Deadlock API
+ *   - connect-src             : APIs Deadlock + Spotify (OAuth + playback) — pas de wildcard https:
+ *   - object-src / media-src  : désactivés (pas de Flash ni de <video> externe)
+ */
+function setupContentSecurityPolicy(): void {
+  const CSP = [
+    "default-src 'self'",
+    "script-src 'self'",
+    "style-src 'self' 'unsafe-inline'",
+    // Steam avatar CDN (avatarmedium URLs) + Deadlock API hero/item image assets
+    "img-src 'self' data: https://*.steamstatic.com https://*.steampowered.com https://steamcommunity.com https://*.deadlock-api.com",
+    // Deadlock community API + Spotify API for token refresh and playback control
+    "connect-src 'self' https://api.deadlock-api.com https://assets.deadlock-api.com https://api.spotify.com https://accounts.spotify.com",
+    "object-src 'none'",
+    "media-src 'none'",
+  ].join('; ');
+
+  session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+    callback({
+      responseHeaders: {
+        // Preserve existing response headers (e.g. Content-Type) and append CSP
+        ...details.responseHeaders,
+        'Content-Security-Policy': [CSP],
+      },
+    });
+  });
+}
+
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
 app.on('ready', () => {
+  setupContentSecurityPolicy();
   setupIpcHandlers();
   setupLogWatcherListeners();
   createWindow();
