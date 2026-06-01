@@ -642,8 +642,8 @@ function setupContentSecurityPolicy(): void {
     "default-src 'self'",
     "script-src 'self'",
     "style-src 'self' 'unsafe-inline'",
-    // Steam avatar CDN (avatarmedium URLs) + Deadlock API hero/item image assets
-    "img-src 'self' data: https://*.steamstatic.com https://*.steampowered.com https://steamcommunity.com https://*.deadlock-api.com",
+    // Steam avatar CDN (avatarmedium URLs) + Deadlock API hero/item image assets + Spotify album art CDN
+    "img-src 'self' data: https://*.steamstatic.com https://*.steampowered.com https://steamcommunity.com https://*.deadlock-api.com https://i.scdn.co",
     // Deadlock community API + Spotify API for token refresh and playback control
     "connect-src 'self' https://api.deadlock-api.com https://assets.deadlock-api.com https://api.spotify.com https://accounts.spotify.com",
     "object-src 'none'",
