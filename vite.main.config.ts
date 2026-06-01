@@ -20,7 +20,7 @@ export default defineConfig({
     // Bake credentials into the bundle at build time — dotenv is not available in packaged builds.
     'process.env.SPOTIFY_CLIENT_ID': JSON.stringify(process.env.SPOTIFY_CLIENT_ID ?? ''),
     'process.env.SPOTIFY_CLIENT_SECRET': JSON.stringify(process.env.SPOTIFY_CLIENT_SECRET ?? ''),
-    'process.env.SPOTIFY_REDIRECT_URI': JSON.stringify(process.env.SPOTIFY_REDIRECT_URI ?? 'http://127.0.0.1:30765/callback'),
+    'process.env.SPOTIFY_REDIRECT_URI': JSON.stringify(process.env.SPOTIFY_REDIRECT_URI ?? 'http://127.0.0.1:30765/spotify/callback'),
     'process.env.STEAM_API_KEY': JSON.stringify(process.env.STEAM_API_KEY ?? ''),
   },
   build: {

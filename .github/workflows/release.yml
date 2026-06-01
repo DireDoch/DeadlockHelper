@@ -62,6 +62,23 @@ jobs:
         if: runner.os == 'Linux'
         run: chmod +x src/python/dist/data_processor
 
+      - name: Verify secrets are set (lengths only — no values exposed)
+        shell: bash
+        run: |
+          echo "SPOTIFY_CLIENT_ID     length: ${#SPOTIFY_CLIENT_ID}"
+          echo "SPOTIFY_CLIENT_SECRET length: ${#SPOTIFY_CLIENT_SECRET}"
+          echo "SPOTIFY_REDIRECT_URI  length: ${#SPOTIFY_REDIRECT_URI}"
+          echo "STEAM_API_KEY         length: ${#STEAM_API_KEY}"
+          if [ -z "$SPOTIFY_CLIENT_ID" ] || [ -z "$SPOTIFY_CLIENT_SECRET" ]; then
+            echo "ERROR: Spotify credentials are empty — build will embed blank strings and cause invalid_client"
+            exit 1
+          fi
+        env:
+          SPOTIFY_CLIENT_ID: ${{ secrets.SPOTIFY_CLIENT_ID }}
+          SPOTIFY_CLIENT_SECRET: ${{ secrets.SPOTIFY_CLIENT_SECRET }}
+          SPOTIFY_REDIRECT_URI: ${{ secrets.SPOTIFY_REDIRECT_URI }}
+          STEAM_API_KEY: ${{ secrets.STEAM_API_KEY }}
+
       - name: Build Vite bundles
         run: npm run build:vite
         env:

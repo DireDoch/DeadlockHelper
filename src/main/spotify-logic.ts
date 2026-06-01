@@ -1,6 +1,8 @@
 import 'dotenv/config';
-import { ipcMain, shell } from 'electron';
+import { ipcMain, shell, app } from 'electron';
 import http from 'node:http';
+import fs from 'node:fs';
+import path from 'node:path';
 import crypto from 'node:crypto';
 import Store from 'electron-store';
 
@@ -33,11 +35,31 @@ const spotifyStore = new Store<{ auth: SpotifyTokens | null }>({
   defaults: { auth: null },
 });
 
-const CLIENT_ID = process.env.SPOTIFY_CLIENT_ID ?? '';
-const CLIENT_SECRET = process.env.SPOTIFY_CLIENT_SECRET ?? '';
-// Per Spotify rules: use http://127.0.0.1 (not http://localhost) for local redirect URIs.
-// Make sure this matches exactly what is registered in your Spotify app dashboard.
-const REDIRECT_URI = process.env.SPOTIFY_REDIRECT_URI ?? 'http://127.0.0.1:30765/callback';
+// Load credentials from userData/spotify-credentials.json if present (runtime override),
+// otherwise fall back to values baked in at build time via Vite define.
+// File location on Linux : ~/.config/DeadlockHelper/spotify-credentials.json
+// File location on Windows: %APPDATA%\DeadlockHelper\spotify-credentials.json
+// Expected format: { "clientId": "...", "clientSecret": "...", "redirectUri": "..." }
+function loadCredentials() {
+  try {
+    const configPath = path.join(app.getPath('userData'), 'spotify-credentials.json');
+    if (fs.existsSync(configPath)) {
+      const raw = JSON.parse(fs.readFileSync(configPath, 'utf8')) as Record<string, string>;
+      return {
+        clientId: raw['clientId'] || process.env.SPOTIFY_CLIENT_ID || '',
+        clientSecret: raw['clientSecret'] || process.env.SPOTIFY_CLIENT_SECRET || '',
+        redirectUri: raw['redirectUri'] || process.env.SPOTIFY_REDIRECT_URI || 'http://127.0.0.1:30765/spotify/callback',
+      };
+    }
+  } catch { /* ignore — fall through to baked values */ }
+  return {
+    clientId: process.env.SPOTIFY_CLIENT_ID ?? '',
+    clientSecret: process.env.SPOTIFY_CLIENT_SECRET ?? '',
+    redirectUri: process.env.SPOTIFY_REDIRECT_URI ?? 'http://127.0.0.1:30765/spotify/callback',
+  };
+}
+
+const { clientId: CLIENT_ID, clientSecret: CLIENT_SECRET, redirectUri: REDIRECT_URI } = loadCredentials();
 const SCOPES = 'user-modify-playback-state user-read-playback-state user-read-currently-playing';
 
 function buildAuthorizeUrl(state: string): string {
