@@ -312,6 +312,8 @@ def main():
                        help='Optional parameter (e.g., item ID or match_id)')
     parser.add_argument('--health-check', action='store_true',
                        help='Perform API health check')
+    parser.add_argument('--mock', action='store_true',
+                       help='Mock mode flag (passed by Electron, ignored here — real API is always used)')
 
     args = parser.parse_args()
 

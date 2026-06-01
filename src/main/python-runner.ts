@@ -56,13 +56,17 @@ const MAX_DEBUG_OUTPUT_LEN = 2000;
  * @returns Promise resolving to { success: true, data, stdout, stderr, exitCode, durationMs }
  * @throws Rejects with object { success: false, error, stdout?, stderr?, ... }
  */
+function getPythonExecutable(): string {
+  return process.platform === 'win32' ? 'python' : 'python3';
+}
+
 export function runPython<T = unknown>(options: RunPythonOptions): Promise<RunPythonSuccess<T>> {
   const {
     scriptPath,
     args,
     cwd,
     debug = false,
-    pythonExecutable = 'python',
+    pythonExecutable = getPythonExecutable(),
   } = options;
 
   const fullArgs = [scriptPath, ...args];

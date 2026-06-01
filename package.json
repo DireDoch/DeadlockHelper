@@ -25,6 +25,12 @@
       ".vite/**/*",
       "package.json"
     ],
+    "extraResources": [
+      {
+        "from": "src/python",
+        "to": "python"
+      }
+    ],
     "win": {
       "target": [{"target": "nsis", "arch": ["x64"]}],
       "icon": "src/renderer/assets/icon.png",

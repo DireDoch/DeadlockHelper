@@ -1,4 +1,2 @@
-# Python dependencies for DeadlockHelper
-# Install with: pip install -r requirements.txt
-
-requests>=2.31.0
+# data_processor.py uses Python stdlib only (http.client, json, argparse, socket).
+# No third-party dependencies required.
