@@ -4,6 +4,11 @@ ocr-worker/venv/
 *.pyc
 .EasyOCR/
 
+# PyInstaller build artifacts (data_processor binary — built by CI, not committed)
+src/python/dist/
+src/python/build/
+src/python/*.spec
+
 # Logs
 logs
 *.log

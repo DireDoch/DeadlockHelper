@@ -6,7 +6,7 @@ import path from 'node:path';
 import Store from 'electron-store';
 import { setupSteamHandlers } from './steam-logic';
 import { setupSpotifyHandlers } from './spotify-logic';
-import { runPython, getDataProcessorScriptPath, isPythonDebugEnabled } from './python-runner';
+import { runPython, getDataProcessorPath, isPythonDebugEnabled } from './python-runner';
 import {
   findActiveMatchByAccountId,
   getDeadlockProcessStatus,
@@ -187,7 +187,8 @@ function calculateAvailability(): number {
 async function performHealthCheck(): Promise<void> {
   const appPath = app.getAppPath();
   const isPackaged = app.isPackaged;
-  const scriptPath = getDataProcessorScriptPath(appPath, isPackaged);
+  // getDataProcessorPath returns the PyInstaller binary path (packaged) or .py source path (dev)
+  const { scriptPath, directExecutable } = getDataProcessorPath(appPath, isPackaged);
   const cwd = isPackaged ? path.dirname(scriptPath) : appPath;
   const debug = isPythonDebugEnabled();
 
@@ -197,6 +198,7 @@ async function performHealthCheck(): Promise<void> {
       args: ['--health-check'],
       cwd,
       debug,
+      directExecutable,
     });
     const success = Boolean(data?.success && data?.status !== 'api_error');
     recordApiCall(success);
@@ -515,7 +517,8 @@ function setupIpcHandlers(): void {
   ipcMain.handle('python:execute', async (event, { query, param, mockMode }) => {
     const appPath = app.getAppPath();
     const isPackaged = app.isPackaged;
-    const scriptPath = getDataProcessorScriptPath(appPath, isPackaged);
+    // getDataProcessorPath returns the PyInstaller binary path (packaged) or .py source path (dev)
+    const { scriptPath, directExecutable } = getDataProcessorPath(appPath, isPackaged);
     const cwd = isPackaged ? path.dirname(scriptPath) : appPath;
     const useMockMode = mockMode !== undefined ? mockMode : mockModeEnabled;
     const args = ['--query', query || 'items'];
@@ -528,6 +531,7 @@ function setupIpcHandlers(): void {
         args,
         cwd,
         debug: isPythonDebugEnabled(),
+        directExecutable,
       });
 
       const isApiError = result.status === 'api_error' || (!result.success && (result.code ?? 0) >= 500);

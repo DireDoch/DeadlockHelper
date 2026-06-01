@@ -39,6 +39,29 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Build PyInstaller binary
+        shell: bash
+        run: |
+          # PyInstaller compile data_processor.py en un binaire autonome qui inclut
+          # l'interpréteur Python — l'utilisateur n'a pas besoin d'installer Python.
+          #
+          # --onefile         : un seul fichier exécutable (pas de dossier avec des .dll)
+          # --distpath        : destination du binaire, récupéré par extraResources electron-builder
+          # --workpath        : fichiers temporaires de compilation (hors du repo)
+          # --specpath        : fichier .spec généré par PyInstaller (hors du repo)
+          # --name            : nom du binaire final (data_processor ou data_processor.exe)
+          pip install pyinstaller
+          pyinstaller --onefile \
+            --distpath src/python/dist \
+            --workpath src/python/build \
+            --specpath src/python \
+            --name data_processor \
+            src/python/data_processor.py
+
+      - name: Mark binary as executable (Linux only)
+        if: runner.os == 'Linux'
+        run: chmod +x src/python/dist/data_processor
+
       - name: Build Vite bundles
         run: npm run build:vite
         env:
