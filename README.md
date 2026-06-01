@@ -156,53 +156,93 @@ Le processus principal expose ses capacités au renderer via `ipcMain.handle()`.
 
 La grille principale liste tous les héros jouables de Deadlock, filtrés depuis `GET https://api.deadlock-api.com/v1/assets/heroes` (`player_selectable=true`, `disabled=false`). Chaque carte affiche le portrait, le nom et le type de héros. Un clic ouvre la page de détail avec cinq onglets : Builds, Items, Skill Path, Overview & Abilities, Lore.
 
-![Bibliothèque de héros](docs/images/hero-library.png)
+<p align="center">
+  <img src="docs/ReadmeHeroes.png" width="600" alt="Bibliothèque de héros" style="border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);" />
+  <br/>
+  <em>Bibliothèque de héros — grille de tous les personnages jouables, filtrée via l'API communautaire</em>
+</p>
 
 ### Builds communautaires et analyse
 
 Les trois builds les plus populaires de la semaine sont récupérés depuis `GET /v1/builds?hero_id={id}&sort_by=weekly_favorites&limit=3`, puis enrichis avec le taux de victoire via `GET /v1/analytics/hero-build-stats/{hero_id}`. Le build au meilleur winrate reçoit un badge **Recommended**. La barre de répartition Dégâts Gun/Spirit, l'ordre de déverrouillage des compétences et les items core sont affichés dans un résumé compact, suivi de la grille complète des items par catégorie.
 
-![Builds communautaires](docs/images/hero-builds.png)
+<p align="center">
+  <img src="docs/ReadmeHeroBuilds.png" width="600" alt="Builds communautaires" style="border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);" />
+  <br/>
+  <em>Builds communautaires — résumé des items core, répartition Gun/Spirit et ordre de déverrouillage des compétences</em>
+</p>
 
 ### Overview & Abilities
 
 L'onglet Overview & Abilities affiche les statistiques de combat de base (clip size, bullet damage, max health, move speed) et les quatre compétences signature. Chaque compétence sélectionnable révèle un panneau détaillé : description en texte enrichi avec mise en évidence des effets de statut, paliers d'amélioration T1/T2/T3, statistiques dynamiques clés et cooldown. L'Ultimate est distinguée par un effet de lueur dorée pulsante. Toutes les données proviennent du cache de la session — zéro appel API supplémentaire.
 
-![Overview & Abilities](docs/images/overview-abilities.png)
+<p align="center">
+  <img src="docs/ReadmeOverviewAndAbilities.png" width="600" alt="Overview & Abilities" style="border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);" />
+  <br/>
+  <em>Overview & Abilities — statistiques de combat et panneau détaillé de compétence avec effets de statut mis en évidence</em>
+</p>
 
 ### Live Dashboard
 
 Le Live Dashboard suit une partie en cours en temps réel. Dès qu'un `match_id` est détecté (voir [Détection de match](#choix-technique--détection-de-match-par-log-watching)), les métadonnées du match sont récupérées depuis `GET /v1/matches/{id}/metadata`. Les onglets Overview, Lane Stats, Economy, Damage et Items présentent les statistiques de chaque joueur, enrichies des noms Steam depuis le cache local (TTL 7 jours, canal `player-names:get-many`).
 
-![Live Dashboard — vue d'ensemble](docs/images/live-dashboard.png)
+<p align="center">
+  <img src="docs/ReadmeLiveDashboard.png" width="600" alt="Live Dashboard — vue d'ensemble" style="border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);" />
+  <br/>
+  <em>Live Dashboard — vue Overview d'une partie en cours avec statistiques par joueur et noms Steam</em>
+</p>
 
-![Live Dashboard — partie en cours](docs/images/live-dashboard-streetbrawl.png)
+<p align="center">
+  <img src="docs/ReadmeLiveDashboard(streetbrawl).png" width="600" alt="Live Dashboard — Street Brawl 4v4" style="border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);" />
+  <br/>
+  <em>Live Dashboard — mode Street Brawl (4v4), layout adaptatif à la taille de l'équipe</em>
+</p>
 
 ### Profil et Awards
 
 La page Profil affiche le compte Steam authentifié (avatar, personaname, SteamID) ainsi que l'historique des matchs récents. L'onglet Awards évalue chaque match terminé selon 53 critères de performance (dégâts par minute, kills, souls, participation aux kills, etc.) et attribue des récompenses classées par rareté : Épique, Rare, Peu Commun, Commun, Infâme. Une notification native du système d'exploitation est déclenchée à chaque nouveau award gagné.
 
-![Profil — vue d'ensemble](docs/images/profil-overview.png)
+<p align="center">
+  <img src="docs/ReadmeProfilOverview.png" width="600" alt="Profil — vue d'ensemble" style="border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);" />
+  <br/>
+  <em>Profil — vue d'ensemble avec historique des matchs, rang estimé et statistiques de compte Steam</em>
+</p>
 
-![Profil — Awards](docs/images/profil-awards.png)
+<p align="center">
+  <img src="docs/ReadmeProfilAwards.png" width="600" alt="Profil — Awards" style="border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);" />
+  <br/>
+  <em>Awards — récompenses de performance calculées sur l'historique de matchs, classées par rareté (Épique → Infâme)</em>
+</p>
 
 ### Distribution des rangs
 
 La page Rank Distribution affiche la répartition globale des joueurs de Deadlock par rang, depuis `GET /v1/analytics/rank-distribution`. Un survol de chaque tranche de rang révèle le pourcentage de joueurs et le seuil MMR correspondant.
 
-![Distribution des rangs](docs/images/rank-distribution.png)
+<p align="center">
+  <img src="docs/ReadmeRankDistribution.png" width="600" alt="Distribution des rangs" style="border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);" />
+  <br/>
+  <em>Rank Distribution — répartition globale des joueurs par rang avec pourcentages au survol</em>
+</p>
 
 ### Widget Spotify
 
 Le widget Spotify, intégré dans la sidebar et disponible en overlay, permet de contrôler la lecture musicale sans quitter le jeu. Après une authentification OAuth, les boutons Précédent, Play/Pause, Suivant, la pochette d'album, le titre et l'artiste sont affichés avec une actualisation automatique toutes les 5 secondes via `GET https://api.spotify.com/v1/me/player/currently-playing`.
 
-![Widget Spotify](docs/images/spotify-widget.png)
+<p align="center">
+  <img src="docs/SpotifyWidget.png" width="600" alt="Widget Spotify" style="border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);" />
+  <br/>
+  <em>Widget Spotify — contrôle de lecture intégré avec pochette d'album, titre et barre de progression</em>
+</p>
 
 ### Overlay en jeu
 
 L'overlay s'affiche par-dessus Deadlock (fenêtre transparente, `always-on-top`, sans frame) dès que le jeu est détecté. Il présente les suggestions d'items contre la composition adverse, un timer de match synchronisé sur l'heure de début détectée localement, et les informations de la piste Spotify en cours. Sur KDE Plasma + Wayland, une règle KWin est automatiquement appliquée pour maintenir l'overlay au-dessus du jeu en plein écran.
 
-![Overlay en jeu](docs/images/game-overlay.png)
+<p align="center">
+  <img src="src/assets/Images/GameOverlayExemple.png" width="600" alt="Overlay en jeu" style="border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);" />
+  <br/>
+  <em>Overlay en jeu — fenêtre transparente always-on-top avec suggestions d'items et timer de match</em>
+</p>
 
 ---
 
