@@ -101,6 +101,22 @@ Cette commande lance **cinq compilations Vite** dans l'ordre :
 
 **Décision clé — injection des credentials via `define`** : Le Main Process a besoin des credentials Spotify (`CLIENT_ID`, `CLIENT_SECRET`) et de la clé Steam API au runtime. En développement, ces valeurs viennent du fichier `.env`. En production, ce fichier n'existe pas — il est dans le `.gitignore`. La solution est d'utiliser le système `define` de Vite : pendant la compilation, Vite remplace littéralement `process.env.SPOTIFY_CLIENT_ID` par la valeur de la variable d'environnement du moment de la build. Le binaire final contient la valeur en dur, comme une constante. En CI, ces valeurs viennent des GitHub Secrets.
 
+**Décision clé — override des credentials Spotify au runtime** : Si les GitHub Secrets sont incorrects ou expirés, reconstruire une release entière pour changer un secret est lourd. Une couche d'override a été ajoutée : au démarrage, `spotify-logic.ts` cherche le fichier `spotify-credentials.json` dans le dossier `userData` de l'application avant d'utiliser les valeurs baked-in. Si le fichier existe, ses valeurs prennent la priorité.
+
+- Linux : `~/.config/DeadlockHelper/spotify-credentials.json`
+- Windows : `%APPDATA%\DeadlockHelper\spotify-credentials.json`
+
+Format attendu :
+```json
+{
+  "clientId": "...",
+  "clientSecret": "...",
+  "redirectUri": "http://127.0.0.1:30765/spotify/callback"
+}
+```
+
+Ce fichier n'est jamais packagé dans l'ASAR — il vit dans `userData`, un dossier toujours accessible en écriture. Si le fichier est absent, les valeurs baked-in sont utilisées normalement.
+
 ### Étape 6 : Packager avec electron-builder
 
 ```bash
@@ -131,10 +147,12 @@ Les credentials sensibles ne doivent jamais être dans le code source. Ils viven
 |--------|-------|
 | `SPOTIFY_CLIENT_ID` | Identifiant de l'app Spotify (dashboard Spotify for Developers) |
 | `SPOTIFY_CLIENT_SECRET` | Clé secrète Spotify pour le token refresh |
-| `SPOTIFY_REDIRECT_URI` | URL de callback OAuth (`http://127.0.0.1:30765/spotify/callback`) |
+| `SPOTIFY_REDIRECT_URI` | URL de callback OAuth — doit être exactement `http://127.0.0.1:30765/spotify/callback` (correspond à ce qui est enregistré dans le Spotify Developer Dashboard) |
 | `STEAM_API_KEY` | Clé Steam Web API pour récupérer les profils joueurs |
 
 Ces secrets sont passés comme variables d'environnement au step `Build Vite bundles`. Vite les lit via `process.env.*` dans `vite.main.config.ts` et les bake dans le bundle. Après la compilation, ces valeurs font partie du binaire — elles ne sont plus des variables d'environnement.
+
+**Point d'attention sur le timing CI** : Les secrets sont lus au moment où le job démarre sur la machine virtuelle GitHub, pas au moment où le tag est poussé. Si tu mets à jour un secret *après* avoir poussé le tag, le build en cours utilisera l'ancienne valeur. Dans ce cas, supprimer le tag et le re-pousser relance un nouveau build qui lira les secrets mis à jour.
 
 ---
 
@@ -179,6 +197,29 @@ git push origin v1.0.x
 ```
 
 Le push du tag déclenche automatiquement le workflow GitHub. Le build prend environ 5-10 minutes (PyInstaller est la partie la plus longue). La release draft apparaît ensuite dans l'onglet "Releases" du repository.
+
+---
+
+## La Content Security Policy (CSP) — double couche
+
+La CSP de l'application existe à **deux endroits**, et c'est important de comprendre lequel s'applique réellement.
+
+**Le meta tag dans `index.html`** est la déclaration "intention" — elle est utile en développement quand Vite sert les fichiers via un serveur HTTP.
+
+**Le handler `session.webRequest.onHeadersReceived` dans `main.ts`** est la CSP réelle appliquée en production. Il intercepte toutes les réponses HTTP de la session Electron et injecte le header `Content-Security-Policy`. Ce header a priorité sur le meta tag HTML — c'est lui qui compte dans l'AppImage ou le `.exe`.
+
+Les deux doivent être synchronisés. La liste des origines autorisées dans `img-src` :
+
+| Origine | Usage |
+|---------|-------|
+| `'self' data:` | Assets locaux bundlés par Vite, images base64 |
+| `https://*.steamstatic.com` | Avatars Steam |
+| `https://*.steampowered.com` | Assets Steam |
+| `https://steamcommunity.com` | Profils Steam |
+| `https://*.deadlock-api.com` | Images héros et items Deadlock |
+| `https://i.scdn.co` | Pochettes d'albums Spotify |
+
+Si une nouvelle source d'image est ajoutée (par exemple pour un autre widget), elle doit être déclarée dans **les deux endroits** : `index.html` et la fonction `setupContentSecurityPolicy()` dans `main.ts`.
 
 ---
 
