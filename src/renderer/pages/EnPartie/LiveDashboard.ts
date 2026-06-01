@@ -55,6 +55,21 @@ const DEMO_MATCH_IDS = [80659633, 84419762, 80457157, 84553413] as const;
 const SECONDS_12H = 12 * 60 * 60;
 const SECONDS_30D = 30 * 24 * 60 * 60;
 
+/**
+ * Live Dashboard — 6×2 (or 4×2) grid of PlayerCards for all players in a match.
+ *
+ * Driven by `game:state-changed` IPC events pushed by the Main Process.
+ * Transitions through three states: GAME_CLOSED → GAME_MENU → GAME_IN_MATCH.
+ * In GAME_IN_MATCH it fetches the full match roster + enrichment data (Steam names,
+ * hero assets, MMR, rank distribution, match history) in parallel.
+ *
+ * When the API has not yet ingested a freshly-started match (LIVE_PENDING), the
+ * dashboard polls every 8 seconds and also accepts an OCR roster from the worker
+ * (`ocr:roster-updated` IPC) as a visual fallback showing hero tiles immediately.
+ *
+ * All API fetches and their field mappings are documented in the file-level DATA FLOW
+ * comment above (endpoints 0-8).
+ */
 export class LiveDashboardPage {
   private container: HTMLElement | null = null;
   private isLoading = false;

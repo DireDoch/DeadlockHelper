@@ -307,6 +307,15 @@ function openSteamAuthWindow(_parentWindow: BrowserWindow | null): Promise<Steam
   });
 }
 
+/**
+ * Register all Steam IPC handlers. Called once from `setupIpcHandlers()` in main.ts.
+ *
+ * IPC channels registered:
+ *   steam:startAuth        — open Steam OpenID in the system browser, return { success, steamId64 }
+ *   steam:getProfile       — read persisted { steamId64, avatarUrl, personaname } from electron-store
+ *   steam:logout           — clear the Steam profile from electron-store, notify renderer
+ *   steam:checkInstallation — detect Steam on Windows via registry / default path (Windows only)
+ */
 export function setupSteamHandlers(): void {
   // Resolve only after server.close() callback so the port is released before the renderer gets the result.
   ipcMain.handle('steam:startAuth', async (event) => {

@@ -11,7 +11,7 @@
     "make": "electron-forge make",
     "publish": "electron-forge publish",
     "lint": "eslint --ext .ts,.tsx .",
-    "build:vite": "vite build --config vite.main-window.config.mjs && vite build --config vite.overlay-window.config.mjs && vite build --config vite.main.config.ts && vite build --config vite.preload.config.ts && vite build --config vite.overlay-preload.config.ts",
+    "build:vite": "STANDALONE_BUILD=1 vite build --config vite.main-window.config.mjs && STANDALONE_BUILD=1 vite build --config vite.overlay-window.config.mjs && STANDALONE_BUILD=1 vite build --config vite.main.config.ts && STANDALONE_BUILD=1 vite build --config vite.preload.config.ts && STANDALONE_BUILD=1 vite build --config vite.overlay-preload.config.ts",
     "build:pyinstaller": "pyinstaller --onefile --distpath src/python/dist --workpath src/python/build --specpath src/python --name data_processor src/python/data_processor.py",
     "build:linux": "npm run build:pyinstaller && npm run build:vite && electron-builder --linux",
     "build:linux:appimage": "npm run build:pyinstaller && npm run build:vite && electron-builder --linux AppImage",

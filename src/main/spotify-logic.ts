@@ -6,13 +6,16 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import Store from 'electron-store';
 
+/** Persisted Spotify OAuth tokens stored in electron-store ('spotify-auth'). */
 interface SpotifyTokens {
   accessToken: string;
   refreshToken: string;
+  /** Unix ms timestamp after which the access token is considered expired. */
   expiresAtMs: number;
   displayName: string | null;
 }
 
+/** Shape returned by the `spotify:getCurrentlyPlaying` IPC handler to the renderer. */
 interface CurrentlyPlaying {
   title: string;
   artist: string;
@@ -22,6 +25,7 @@ interface CurrentlyPlaying {
   durationMs: number;
 }
 
+/** Shape of a single device entry from `GET /v1/me/player/devices`. */
 interface SpotifyDevice {
   id: string;
   name: string;
@@ -62,6 +66,11 @@ function loadCredentials() {
 const { clientId: CLIENT_ID, clientSecret: CLIENT_SECRET, redirectUri: REDIRECT_URI } = loadCredentials();
 const SCOPES = 'user-modify-playback-state user-read-playback-state user-read-currently-playing';
 
+/**
+ * Build the Spotify authorization URL for the Authorization Code flow.
+ * @param state - CSRF token (random hex) to verify on callback.
+ * @returns Full URL to open in the system browser.
+ */
 function buildAuthorizeUrl(state: string): string {
   const params = new URLSearchParams({
     response_type: 'code',
@@ -73,6 +82,10 @@ function buildAuthorizeUrl(state: string): string {
   return `https://accounts.spotify.com/authorize?${params.toString()}`;
 }
 
+/**
+ * Extract port and pathname from the configured redirect URI.
+ * Defaults to port 30765 and path '/callback' if the URI is malformed.
+ */
 function parseRedirectUri(): { port: number; path: string } {
   try {
     const url = new URL(REDIRECT_URI);
@@ -82,6 +95,16 @@ function parseRedirectUri(): { port: number; path: string } {
   }
 }
 
+/**
+ * Exchange an authorization code for access + refresh tokens.
+ * Immediately fetches the Spotify user profile to persist `displayName`.
+ * Stores the resulting tokens in electron-store ('spotify-auth').
+ *
+ * Endpoint: POST https://accounts.spotify.com/api/token
+ * @param code - One-time authorization code received on the OAuth callback.
+ * @returns Persisted SpotifyTokens including displayName.
+ * @throws Error if the token exchange HTTP call fails.
+ */
 async function exchangeCodeForToken(code: string): Promise<SpotifyTokens> {
   const credentials = Buffer.from(`${CLIENT_ID}:${CLIENT_SECRET}`).toString('base64');
   const response = await fetch('https://accounts.spotify.com/api/token', {
@@ -121,6 +144,14 @@ async function exchangeCodeForToken(code: string): Promise<SpotifyTokens> {
   return tokens;
 }
 
+/**
+ * Obtain a fresh access token using the stored refresh token.
+ * Spotify may rotate the refresh token on each call — the new one (if present) replaces the old.
+ *
+ * Endpoint: POST https://accounts.spotify.com/api/token (grant_type=refresh_token)
+ * @returns New access token string.
+ * @throws Error if no refresh token is stored, or if the HTTP call fails.
+ */
 async function refreshAccessToken(): Promise<string> {
   const auth = spotifyStore.get('auth');
   if (!auth?.refreshToken) throw new Error('No refresh token available');
@@ -151,6 +182,10 @@ async function refreshAccessToken(): Promise<string> {
   return updated.accessToken;
 }
 
+/**
+ * Return a valid access token, refreshing proactively if it expires within 60 seconds.
+ * @throws Error if the user is not authenticated (no stored tokens).
+ */
 async function getValidAccessToken(): Promise<string> {
   const auth = spotifyStore.get('auth');
   if (!auth) throw new Error('Not authenticated with Spotify');
@@ -158,6 +193,10 @@ async function getValidAccessToken(): Promise<string> {
   return auth.accessToken;
 }
 
+/**
+ * Extract a human-readable message from a failed Spotify API response.
+ * Returns "HTTP {status}" as fallback if the body is not parseable JSON.
+ */
 async function parseSpotifyError(res: Response): Promise<string> {
   try {
     const body = await res.json() as { error?: { message?: string } | string };
@@ -167,6 +206,21 @@ async function parseSpotifyError(res: Response): Promise<string> {
   return `HTTP ${res.status}`;
 }
 
+/**
+ * Authenticated Spotify API request with automatic token refresh and rate-limit handling.
+ *
+ * - On 401: refreshes the access token and retries once.
+ * - On 429: waits for the `Retry-After` header duration (or exponential backoff) and retries,
+ *   up to MAX_RETRIES (3) times.
+ * - On 204/202: returns null (Spotify uses these for successful no-body responses).
+ *
+ * @param method     - HTTP method (GET, PUT, POST).
+ * @param endpoint   - Spotify API path, e.g. '/v1/me/player/currently-playing'.
+ * @param body       - Optional JSON request body.
+ * @param retryCount - Internal retry counter; do not pass externally.
+ * @returns Parsed JSON response or null for empty-body success responses.
+ * @throws Error with Spotify's error message on non-retryable failures.
+ */
 async function spotifyRequest<T = any>(
   method: string,
   endpoint: string,
@@ -213,6 +267,21 @@ async function spotifyRequest<T = any>(
   return text ? (JSON.parse(text) as T) : null;
 }
 
+/**
+ * Register all Spotify IPC handlers. Called once from `setupIpcHandlers()` in main.ts.
+ *
+ * IPC channels registered:
+ *   spotify:login              — OAuth Authorization Code flow via local HTTP server on 127.0.0.1
+ *   spotify:logout             — clear stored tokens from electron-store
+ *   spotify:getAuthStatus      — { isAuthenticated, displayName }
+ *   spotify:play               — PUT /v1/me/player/play (optional deviceId)
+ *   spotify:pause              — PUT /v1/me/player/pause
+ *   spotify:next               — POST /v1/me/player/next
+ *   spotify:previous           — POST /v1/me/player/previous
+ *   spotify:getCurrentlyPlaying — GET /v1/me/player/currently-playing → CurrentlyPlaying | null
+ *   spotify:getDevices         — GET /v1/me/player/devices → SpotifyDevice[]
+ *   spotify:transferDevice     — PUT /v1/me/player (transfer playback to deviceId)
+ */
 export function setupSpotifyHandlers(): void {
   ipcMain.handle('spotify:login', async () => {
     const state = crypto.randomBytes(16).toString('hex');

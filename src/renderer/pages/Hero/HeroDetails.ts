@@ -142,6 +142,17 @@ const TABS: { id: Tab; label: string }[] = [
 const ABILITY_COLORS = ['#6eb3a8', '#c9a46e', '#a86e9e', '#8cb86e'];
 
 // ── HeroDetailsPage ───────────────────────────────────────────────────────────
+
+/**
+ * Hero detail view with five tabs: Builds, Items, Skill Path, Overview & Abilities, Lore.
+ *
+ * Instantiated by `app.ts` when the user selects a hero in HeroLibrary.
+ * Receives a `HeroData` object via a `navigate-hero` CustomEvent.
+ *
+ * All API fetches are documented in the file-level DATA FLOW comment above.
+ * The items catalogue (~3 MB) is cached at module scope via `fetchItemsCache()` and
+ * shared across hero navigations — the network request fires only once per session.
+ */
 export class HeroDetailsPage {
   private container: HTMLElement | null = null;
   private hero: HeroData | null = null;

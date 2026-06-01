@@ -261,6 +261,19 @@ function computeTopHeroes(
 
 // ── ProfilPage ─────────────────────────────────────────────────────────────────
 
+/**
+ * Profile page with three tabs: Overview, Match History, and Awards.
+ *
+ * On mount, resolves the linked Steam account then fetches the last 50 matches in
+ * batches of 50 via the bulk metadata endpoint. Metadata from matches 0-9 populates
+ * the match history rows; metadata from 0-49 feeds the rolling rank average estimate.
+ *
+ * The Awards tab evaluates each match against 53 criteria defined in `src/lib/awards.ts`
+ * and persists earned awards to the Main Process via `awards:save-batch` IPC.
+ * A native OS notification fires for any award earned for the first time.
+ *
+ * All API fetches are documented in the file-level DATA FLOW comment above.
+ */
 export class ProfilPage {
   private container: HTMLElement | null = null;
   private currentTab: Tab = 'overview';

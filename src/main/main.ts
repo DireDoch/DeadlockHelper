@@ -31,10 +31,15 @@ import { LogWatcher } from './log-watcher';
 import started from 'electron-squirrel-startup';
 import type { CachedMatchData, MatchData, GameState } from '../lib/types';
 
-/** Shape of JSON returned by data_processor.py (success, status, data, etc.) */
+/**
+ * Shape of the JSON envelope returned by data_processor.py on stdout.
+ * The `data` field holds the actual API payload; top-level fields describe the call outcome.
+ */
 interface PythonQueryResult {
   success?: boolean;
+  /** "api_error" when the Deadlock community API is unreachable. */
   status?: string;
+  /** HTTP-like status code echoed from the Python layer. */
   code?: number;
   data?: any;
   [key: string]: unknown;
@@ -45,6 +50,11 @@ if (started) {
   app.quit();
 }
 
+/**
+ * Create and configure the main BrowserWindow.
+ * Loads the Vite dev server URL in development or the built HTML file in production.
+ * Stores a reference in `mainWindow` so other modules can send IPC pushes to the renderer.
+ */
 const createWindow = () => {
   // Create the browser window.
   const window = new BrowserWindow({
@@ -128,7 +138,11 @@ let matchSource: 'log' | 'api' | null = null;
 // Log watcher instance for condebug overlay support
 const logWatcher = new LogWatcher();
 
-// Démarre le worker OCR uniquement si le toggle espOcrEnabled est activé.
+/**
+ * Start the OCR roster worker if the user has enabled the ESP toggle in settings.
+ * Called on every match-start event so the worker launches only when a match is actually running.
+ * No-op if the main window is gone or the toggle is off.
+ */
 function startOcrIfEnabled(): void {
   if (!mainWindow || mainWindow.isDestroyed()) return;
   if (getOverlaySettings().espOcrEnabled !== true) return;
@@ -230,6 +244,10 @@ function stopHeartbeat(): void {
   }
 }
 
+/**
+ * Push `game:match-started` to the renderer.
+ * @param matchId - Deadlock match ID detected from the log or community API.
+ */
 function emitMatchStarted(matchId: number): void {
   if (!mainWindow || mainWindow.isDestroyed()) return;
 
@@ -239,6 +257,10 @@ function emitMatchStarted(matchId: number): void {
   });
 }
 
+/**
+ * Push `game:process-status` to the renderer to reflect Deadlock's process state.
+ * @param isRunning - true when the Deadlock process is detected by the OS poll.
+ */
 function emitGameProcessStatus(isRunning: boolean): void {
   if (!mainWindow || mainWindow.isDestroyed()) return;
 
@@ -248,6 +270,10 @@ function emitGameProcessStatus(isRunning: boolean): void {
   });
 }
 
+/**
+ * Push `game:match-ended` to the renderer.
+ * @param matchId - The match that ended, or null if no match was active.
+ */
 function emitMatchEnded(matchId: number | null): void {
   if (!mainWindow || mainWindow.isDestroyed()) return;
 
@@ -257,6 +283,12 @@ function emitMatchEnded(matchId: number | null): void {
   });
 }
 
+/**
+ * Push `game:state-changed` to the renderer with the new `GameState`.
+ * The Live Dashboard and overlay subscribe to this event to transition their UI.
+ * @param state   - New game state: 'GAME_CLOSED' | 'GAME_MENU' | 'GAME_IN_MATCH'.
+ * @param matchId - Present only when transitioning into GAME_IN_MATCH.
+ */
 function emitGameStateChanged(state: GameState, matchId?: number): void {
   if (!mainWindow || mainWindow.isDestroyed()) return;
 
@@ -333,6 +365,15 @@ function setupLogWatcherListeners(): void {
   });
 }
 
+/**
+ * Single polling tick: detect Deadlock's process, manage the overlay window lifecycle,
+ * and query the community API for an active match (best-effort, every 20 s).
+ *
+ * Match source priority:
+ *   1. Local log (LogWatcher) — authoritative, sets matchSource = 'log'.
+ *   2. Community API `/v1/matches/active` — fallback, sets matchSource = 'api'.
+ * A log-detected match is never ended by an empty API response (matchSource guard).
+ */
 async function checkDeadlockAndMatchStatus(): Promise<void> {
   const processStatus = await getDeadlockProcessStatus();
   const isRunning = processStatus.running;
@@ -431,6 +472,10 @@ async function checkDeadlockAndMatchStatus(): Promise<void> {
   }
 }
 
+/**
+ * Start the 7-second polling loop that checks the Deadlock process and active match.
+ * Runs an immediate first tick so the UI reflects game state right after app launch.
+ */
 function startDeadlockPolling(): void {
   // Initial check for responsiveness after app startup.
   checkDeadlockAndMatchStatus().catch((error) => {
@@ -444,6 +489,7 @@ function startDeadlockPolling(): void {
   }, 7_000);
 }
 
+/** Clear the Deadlock polling interval on app quit. */
 function stopDeadlockPolling(): void {
   if (deadlockPollingTimer) {
     clearInterval(deadlockPollingTimer);
@@ -451,7 +497,28 @@ function stopDeadlockPolling(): void {
   }
 }
 
-// Setup IPC handlers
+/**
+ * Register all ipcMain handlers for the application.
+ * Called once from the `app.ready` event before any window is created.
+ *
+ * IPC channels registered here:
+ *   python:execute          — invoke data_processor.py with query + param
+ *   settings:getMockMode    — read in-memory mock flag
+ *   settings:setMockMode    — toggle mock data for the session
+ *   api:health-check        — trigger an immediate availability check
+ *   api:get-availability    — read current availability % from stored history
+ *   api:cache-match         — manually persist match data to electron-store
+ *   api:get-cached-match    — retrieve cached match data by ID
+ *   player-names:get-many   — batch read account_id → personaname (TTL 7 days)
+ *   player-names:set-many   — batch write personaname cache entries
+ *   game:get-status         — snapshot of current game state
+ *   overlay:kwin-fix-status — query KWin rule installation state
+ *   overlay:kwin-fix-apply  — install the KWin keep-above rule
+ *   overlay:kwin-fix-remove — remove the KWin keep-above rule
+ *   esp:get-enabled         — read espOcrEnabled from overlay settings
+ *   esp:set-enabled         — toggle OCR worker, spawning or killing it immediately
+ *   game:launch-deadlock    — open steam://rungameid/1422450 via shell
+ */
 function setupIpcHandlers(): void {
   // Python script execution handler (uses python-runner abstraction)
   ipcMain.handle('python:execute', async (event, { query, param, mockMode }) => {
@@ -626,16 +693,16 @@ function setupIpcHandlers(): void {
 }
 
 /**
- * Injecte les headers Content-Security-Policy sur toutes les réponses de la session par défaut.
- * Cette couche est plus robuste que le meta tag HTML : elle s'applique avant le rendu de la page
- * et couvre les deux fenêtres (main_window et overlay_window).
+ * Inject Content-Security-Policy headers on all responses in the default session.
+ * This main-process layer is more robust than a meta tag: it applies before the page
+ * renders and covers both windows (main_window and overlay_window).
  *
- * Politique :
- *   - script-src 'self'       : uniquement les scripts bundlés par Vite (pas d'eval, pas de CDN)
- *   - style-src 'unsafe-inline': Tailwind génère des styles inline — nécessaire
- *   - img-src                 : avatars Steam (*.steamstatic.com) + images héros/items Deadlock API
- *   - connect-src             : APIs Deadlock + Spotify (OAuth + playback) — pas de wildcard https:
- *   - object-src / media-src  : désactivés (pas de Flash ni de <video> externe)
+ * Policy rationale:
+ *   - script-src 'self'        — only Vite-bundled scripts; no eval, no CDN
+ *   - style-src 'unsafe-inline' — Tailwind JIT emits inline styles at runtime
+ *   - img-src                  — Steam avatar CDN + Deadlock API assets + Spotify album art
+ *   - connect-src              — Deadlock community API + Spotify OAuth/playback; no https: wildcard
+ *   - object-src / media-src   — disabled (no Flash, no external <video>)
  */
 function setupContentSecurityPolicy(): void {
   const CSP = [

@@ -9,10 +9,14 @@ loadDotenv();
 // https://vitejs.dev/config
 export default defineConfig({
   define: {
-    // Forge globals — injected here for standalone electron-builder builds
-    MAIN_WINDOW_VITE_DEV_SERVER_URL: JSON.stringify(''),
+    // Forge globals — only injected for standalone electron-builder builds.
+    // When using `electron-forge start`, forge injects the real dev server URLs;
+    // defining them here as '' would override forge's values and break the dev server.
+    ...(process.env.STANDALONE_BUILD ? {
+      MAIN_WINDOW_VITE_DEV_SERVER_URL: JSON.stringify(''),
+      OVERLAY_WINDOW_VITE_DEV_SERVER_URL: JSON.stringify(''),
+    } : {}),
     MAIN_WINDOW_VITE_NAME: JSON.stringify('main_window'),
-    OVERLAY_WINDOW_VITE_DEV_SERVER_URL: JSON.stringify(''),
     OVERLAY_WINDOW_VITE_NAME: JSON.stringify('overlay_window'),
     // __dirname is not available in ESM; import.meta.dirname is Node 22+ (Electron 28+)
     __dirname: 'import.meta.dirname',

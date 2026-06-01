@@ -165,21 +165,25 @@ def refresh_hero_map():
 # 4. OCR + parsing roster (EasyOCR renvoie boîtes -> tri par y, robuste)
 # ─────────────────────────────────────────────────────────────────────────────
 def crop_region(bgr: np.ndarray, region=DEFAULT_REGION) -> np.ndarray:
+    """Crop a BGR image to the given fractional region (x0, y0, x1, y1 in [0, 1])."""
     h, w = bgr.shape[:2]
     x0, y0, x1, y1 = region
     return bgr[int(h * y0): int(h * y1), int(w * x0): int(w * x1)]
 
 
 def _top_y(box):
+    """Return the minimum y coordinate of an EasyOCR bounding box (top edge)."""
     return min(p[1] for p in box)
 
 
 def _is_header(text: str) -> bool:
+    """Return True if `text` is a panel header keyword (MY TEAM, ENEMY TEAM, etc.)."""
     low = text.lower()
     return any(k in low for k in HEADER_KEYWORDS)
 
 
 def _is_hero_text(text: str) -> bool:
+    """Return True if `text` is likely a hero line (contains 'Level' or strong fuzzy match)."""
     # Ligne de héros = contient « Level » (EasyOCR le lit proprement) OU match fort.
     return bool(re.search(r"lev", text, re.I)) or fuzzy_hero(text)[2] >= HERO_LINE_THRESHOLD
 
@@ -253,6 +257,18 @@ def extract_roster(bgr: np.ndarray, region=DEFAULT_REGION):
 # 5. Capture (Spectacle sur Wayland/KDE ; mss en fallback X11/Windows)
 # ─────────────────────────────────────────────────────────────────────────────
 def capture_spectacle() -> np.ndarray:
+    """Capture the full screen using KDE Spectacle (Wayland-compatible).
+
+    Writes to a temporary PNG file, reads it with OpenCV, then removes the file.
+    Spectacle is the only reliable capture method on Wayland — mss returns a black
+    screen on Wayland sessions (verified: nonBlackPixels == 0).
+
+    Returns:
+        BGR ndarray of the full screen.
+
+    Raises:
+        RuntimeError: if Spectacle exits without producing a readable image.
+    """
     with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
         path = tmp.name
     try:
@@ -278,6 +294,12 @@ def capture_mss() -> np.ndarray:
 
 
 def make_capturer(method: str):
+    """Return the appropriate capture callable based on `method`.
+
+    'spectacle' → capture_spectacle (Wayland/KDE)
+    'mss'       → capture_mss (X11/Windows fallback)
+    'auto'      → spectacle if found on PATH, otherwise mss
+    """
     if method == "spectacle":
         return capture_spectacle
     if method == "mss":
@@ -290,6 +312,19 @@ def make_capturer(method: str):
 # 6. Boucle live — déclencheurs poll / evdev
 # ─────────────────────────────────────────────────────────────────────────────
 def scan_and_emit(capture, region, last_signature):
+    """Capture one frame, extract the roster, and emit it on stdout if it changed.
+
+    De-duplicates output by comparing the current roster JSON signature against
+    the previous one — only truly changed rosters produce a new NDJSON line.
+
+    Args:
+        capture:        Callable returning a BGR ndarray (spectacle or mss).
+        region:         Fractional crop coordinates (x0, y0, x1, y1).
+        last_signature: JSON string of the previously emitted roster, or None.
+
+    Returns:
+        Updated signature string if a new roster was emitted, else last_signature.
+    """
     try:
         bgr = capture()
     except Exception as e:  # noqa: BLE001
@@ -307,6 +342,16 @@ def scan_and_emit(capture, region, last_signature):
 
 
 def run_poll(capture, region, interval: float):
+    """Live loop with periodic capture trigger (default every 1.5 s).
+
+    Pre-loads the EasyOCR model before the first scan so the initial response
+    is fast. Emits only when the PLAYERS panel is visible (anchor-gating).
+
+    Args:
+        capture:  Screen capture callable.
+        region:   Fractional crop region.
+        interval: Seconds between scans.
+    """
     log(f"mode poll (intervalle {interval}s). N'émet que si MY TEAM/ENEMY TEAM est visible.")
     get_reader()  # pré-charge le modèle pour que le 1er scan soit rapide
     emit({"type": "status", "state": "ready", "trigger": "poll"})
@@ -351,6 +396,16 @@ def run_evdev(capture, region):
 # 7. Modes calibration / selftest
 # ─────────────────────────────────────────────────────────────────────────────
 def mode_image(path: str, region, debug: bool):
+    """Calibration mode: parse a static PNG and print the roster JSON to stdout.
+
+    With --debug, also saves the cropped panel to /tmp/ocr_panel.png and logs
+    all OCR fragments (y, confidence, text) to stderr for tuning thresholds.
+
+    Args:
+        path:   Path to the reference PNG image.
+        region: Fractional crop region.
+        debug:  If True, write the panel crop and fragment details to stderr.
+    """
     bgr = cv2.imread(path)
     if bgr is None:
         emit({"type": "error", "error": f"image illisible: {path}"})
@@ -368,6 +423,12 @@ def mode_image(path: str, region, debug: bool):
 
 
 def mode_selftest(region):
+    """Diagnostic mode: verify EasyOCR, Spectacle, Wayland session, and capture.
+
+    Outputs a JSON report to stdout with keys: heroes (count), spectacle (bool),
+    wayland (bool), easyocr ('ok' or error string), capture (shape + nonBlackPixels).
+    A nonBlackPixels count of 0 indicates a black screen (mss on Wayland).
+    """
     report = {"type": "selftest"}
     from shutil import which
     report["heroes"] = len(HERO_MAP)
@@ -393,6 +454,15 @@ def mode_selftest(region):
 # 8. Entrée
 # ─────────────────────────────────────────────────────────────────────────────
 def main():
+    """Entry point — parse CLI arguments and dispatch to the appropriate mode.
+
+    Modes:
+        (default)          Live polling loop (poll trigger, Spectacle capture).
+        --trigger evdev    Live loop triggered by the ESC key via evdev.
+        --image PNG        Calibration on a static image; JSON output to stdout.
+        --selftest         Diagnostic report for the local environment.
+        --refresh-heroes   Refresh HERO_MAP from the community API before running.
+    """
     p = argparse.ArgumentParser(description="ESP OCR Worker — roster live Deadlock (EasyOCR)")
     p.add_argument("--trigger", choices=["poll", "evdev"], default="poll")
     p.add_argument("--capture", choices=["auto", "spectacle", "mss"], default="auto")
