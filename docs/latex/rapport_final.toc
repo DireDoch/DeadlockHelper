@@ -1,0 +1,42 @@
+\babel@toc {english}{}\relax 
+\contentsline {section}{\numberline {1}Identification du projet}{4}{section.1}%
+\contentsline {section}{\numberline {2}Description sommaire du projet}{4}{section.2}%
+\contentsline {section}{\numberline {3}Identification des domaines de l'informatique concernés}{5}{section.3}%
+\contentsline {section}{\numberline {4}Réalisation du projet}{5}{section.4}%
+\contentsline {subsection}{\numberline {4.1}Application de bureau téléchargeable}{5}{subsection.4.1}%
+\contentsline {subsection}{\numberline {4.2}Widget Spotify intégré}{5}{subsection.4.2}%
+\contentsline {subsection}{\numberline {4.3}Synchronisation Steam et données Deadlock}{6}{subsection.4.3}%
+\contentsline {subsection}{\numberline {4.4}Système d'Awards}{6}{subsection.4.4}%
+\contentsline {subsection}{\numberline {4.5}Game Overlay transparent}{7}{subsection.4.5}%
+\contentsline {subsection}{\numberline {4.6}Live Dashboard}{7}{subsection.4.6}%
+\contentsline {section}{\numberline {5}Comment le projet a été réalisé}{7}{section.5}%
+\contentsline {subsection}{\numberline {5.1}Méthodologie et outils de planification}{7}{subsection.5.1}%
+\contentsline {subsection}{\numberline {5.2}Étapes de réalisation}{8}{subsection.5.2}%
+\contentsline {subsection}{\numberline {5.3}Environnement de développement}{8}{subsection.5.3}%
+\contentsline {section}{\numberline {6}Technologies choisies}{9}{section.6}%
+\contentsline {subsection}{\numberline {6.1}Architecture Electron et communication IPC}{9}{subsection.6.1}%
+\contentsline {subsection}{\numberline {6.2}Intégration OAuth --- Spotify}{10}{subsection.6.2}%
+\contentsline {subsection}{\numberline {6.3}Python comme moteur de données et OCR}{11}{subsection.6.3}%
+\contentsline {subsection}{\numberline {6.4}Récapitulatif des technologies}{12}{subsection.6.4}%
+\contentsline {section}{\numberline {7}Nombre d'heures consacrées}{12}{section.7}%
+\contentsline {section}{\numberline {8}Ressources utilisées}{12}{section.8}%
+\contentsline {section}{\numberline {9}Sources d'information}{13}{section.9}%
+\contentsline {subsection}{\numberline {9.1}Fondations et environnement de développement}{13}{subsection.9.1}%
+\contentsline {subsection}{\numberline {9.2}APIs et données de jeu}{13}{subsection.9.2}%
+\contentsline {subsection}{\numberline {9.3}Design, UX et inspiration}{13}{subsection.9.3}%
+\contentsline {subsection}{\numberline {9.4}Linux et overlay in-game}{13}{subsection.9.4}%
+\contentsline {section}{\numberline {10}Difficultés rencontrées et solutions}{14}{section.10}%
+\contentsline {subsection}{\numberline {10.1}API communautaire instable et données dépréciées}{14}{subsection.10.1}%
+\contentsline {subsection}{\numberline {10.2}Build CI/CD~: CSP et variables d'environnement}{14}{subsection.10.2}%
+\contentsline {subsection}{\numberline {10.3}Live Dashboard~: limites du endpoint de parties actives}{14}{subsection.10.3}%
+\contentsline {subsection}{\numberline {10.4}OCR worker~: le défi du roster live}{14}{subsection.10.4}%
+\contentsline {subsection}{\numberline {10.5}Awards non calculables~: données absentes de l'API}{15}{subsection.10.5}%
+\contentsline {section}{\numberline {11}Limites de la réalisation, et pourquoi}{15}{section.11}%
+\contentsline {section}{\numberline {12}Compétences du DEC réinvesties}{16}{section.12}%
+\contentsline {section}{\numberline {13}Analyse de conception : Cycle de vie et cheminement de pensée de l'onglet Live Dashboard}{17}{section.13}%
+\contentsline {subsection}{\numberline {13.1}Phase~1~: Identification des contraintes d'API et architecture de contournement}{17}{subsection.13.1}%
+\contentsline {subsection}{\numberline {13.2}Phase~2~: Design asynchrone et gestion d'état de l'interface}{17}{subsection.13.2}%
+\contentsline {subsection}{\numberline {13.3}Phase~3~: Gestion défensive des cas d'erreur (Fallbacks)}{18}{subsection.13.3}%
+\contentsline {section}{\numberline {14}Bilan des apprentissages réalisés}{18}{section.14}%
+\contentsline {subsection}{\numberline {14.1}Apprentissages techniques}{18}{subsection.14.1}%
+\contentsline {subsection}{\numberline {14.2}Apprentissages en gestion de projet et outils}{23}{subsection.14.2}%

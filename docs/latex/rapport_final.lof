@@ -1,0 +1,11 @@
+\babel@toc {english}{}\relax 
+\contentsline {figure}{\numberline {1}{\ignorespaces Bibliothèque de héros --- vue principale de l'application}}{4}{figure.1}%
+\contentsline {figure}{\numberline {2}{\ignorespaces Widget Spotify --- contrôles de lecture et pochette d'album}}{6}{figure.2}%
+\contentsline {figure}{\numberline {3}{\ignorespaces Page Profil --- système d'Awards avec raretés et statistiques}}{6}{figure.3}%
+\contentsline {figure}{\numberline {4}{\ignorespaces Game Overlay --- superposition transparente par-dessus le jeu}}{7}{figure.4}%
+\contentsline {figure}{\numberline {5}{\ignorespaces Live Dashboard --- grille des 12~joueurs avec statistiques}}{8}{figure.5}%
+\contentsline {figure}{\numberline {6}{\ignorespaces Architecture multi-processus Electron --- flux IPC et Context Bridge}}{9}{figure.6}%
+\contentsline {figure}{\numberline {7}{\ignorespaces Diagramme de classes simplifié pour l'encapsulation et le traitement des entités du jeu.}}{10}{figure.7}%
+\contentsline {figure}{\numberline {8}{\ignorespaces Arbre de décision des awards basés sur les âmes par minute}}{20}{figure.8}%
+\contentsline {figure}{\numberline {9}{\ignorespaces Arbre de décision des awards Kill Participation~--- porte d'entrée absolue (kpActions) et seuils de pourcentage hiérarchisés.}}{20}{figure.9}%
+\contentsline {figure}{\numberline {10}{\ignorespaces Diagramme de flux de l'approximation du killstreak~--- intervalles inter-morts et snapshots cumulatifs \texttt {stats[]}, reçus via IPC.}}{21}{figure.10}%
