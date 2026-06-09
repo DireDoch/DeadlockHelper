@@ -2,7 +2,7 @@
 
 **Développeur :** Anthony Boily — Projet de fin d'études, ESP (2025-2026)
 
-Application de bureau multiplateforme (Linux · Windows) qui offre un avantage tactique aux joueurs de Deadlock (Valve). Elle agrège les données communautaires en temps réel, intègre un gestionnaire multimédia Spotify et propose un hub de connaissances exhaustif sur les héros, les items et les statistiques de classement.
+Application de bureau multiplateforme (Linux · Windows) qui offre un avantage tactique aux joueurs de Deadlock (Valve). Elle agrège les données communautaires en temps réel, intègre un gestionnaire multimédia Spotify et propose un hub de connaissances exhaustif sur les héros, les items et les statistiques de classement...
 
 ---
 
