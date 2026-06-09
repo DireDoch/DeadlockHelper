@@ -287,7 +287,6 @@ Tesseract nécessitait ~24 spawns de sous-processus par scan, fragiles sous char
 
 ---
 
-
 ## Stack technologique
 
 L'application est construite avec **Electron Forge** comme toolchain de build et de packaging. Le renderer utilise **Vite** pour la compilation TypeScript et le rechargement à chaud. Le style est géré par **Tailwind CSS** en mode JIT, sans framework CSS externe ni bibliothèque de composants. La persistance des données (profil Steam, tokens Spotify, cache des matchs, awards) est assurée par **electron-store** — un wrapper JSON typé sur `app.getPath('userData')`. Les données de l'API Deadlock communautaire sont transformées par un script **Python 3.12** (`data_processor.py`) appelé en sous-processus par Electron, ce qui permet d'utiliser des bibliothèques Python de traitement de données sans les embarquer dans le bundle Node.js.
