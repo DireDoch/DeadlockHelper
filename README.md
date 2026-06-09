@@ -2,7 +2,7 @@
 
 **Développeur :** Anthony Boily — Projet de fin d'études, ESP (2025-2026)
 
-Application de bureau multiplateforme (Linux · Windows) qui offre un avantage tactique aux joueurs de Deadlock (Valve). Elle agrège les données communautaires en temps réel, intègre un gestionnaire multimédia Spotify et propose un hub de connaissances exhaustif sur les héros, les items et les statistiques de classement.
+Application de bureau multiplateforme (Linux · Windows) qui offre un avantage tactique aux joueurs de Deadlock (Valve). Elle agrège les données communautaires en temps réel, intègre un gestionnaire multimédia Spotify et propose un hub de connaissances exhaustif sur les héros, les items et les statistiques de classement...
 
 ---
 
@@ -286,7 +286,6 @@ Tesseract nécessitait ~24 spawns de sous-processus par scan, fragiles sous char
 **Poids de la dépendance.** EasyOCR requiert PyTorch (CPU-only), ce qui représente un venv de ~1.5 Go. Un bundle PyInstaller incluant PyTorch serait de plusieurs gigaoctets — incompatible avec un binaire de production raisonnable à distribuer.
 
 ---
-
 
 ## Stack technologique
 
